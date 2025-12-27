@@ -44,9 +44,8 @@ export class PermissionPromptManager
   extends DisposableBase
   implements AcpPermissionHandler
 {
-  private readonly sessionContexts = new Map<string, SessionChatContext>();
-  private readonly pendingPrompts = new Map<string, PendingPrompt>();
-  private promptCounter = 0;
+  private sessionContext: SessionChatContext | null = null;
+  private pendingPrompt: PendingPrompt | null = null;
 
   bindSessionResponse(context: PermissionPromptContext): vscode.Disposable {
     const sessionId = context.sessionState.acpSessionId;
@@ -65,29 +64,27 @@ export class PermissionPromptManager
       token: context.token,
     };
 
-    this.sessionContexts.set(sessionId, chatContext);
-
+    this.sessionContext = chatContext;
     return new vscode.Disposable(() => {
-      const current = this.sessionContexts.get(sessionId);
-      if (current && current.response === context.response) {
-        this.clearSession(sessionId);
+      if (this.sessionContext) {
+        this.clearSession(this.sessionContext.sessionId);
       }
     });
   }
 
   clearSession(sessionId: string): void {
-    this.sessionContexts.delete(sessionId);
-    for (const [promptId, prompt] of this.pendingPrompts) {
-      if (prompt.sessionId === sessionId) {
-        this.resolvePrompt(promptId, { outcome: { outcome: "cancelled" } });
-      }
+    this.sessionContext = null;
+    if (this.pendingPrompt && this.pendingPrompt.sessionId === sessionId) {
+      this.resolvePrompt(this.pendingPrompt.promptId, {
+        outcome: { outcome: "cancelled" },
+      });
     }
   }
 
   async requestPermission(
     request: RequestPermissionRequest,
   ): Promise<RequestPermissionResponse> {
-    const context = this.sessionContexts.get(request.sessionId);
+    const context = this.sessionContext;
     if (!context) {
       return this.promptViaModal(request);
     }
@@ -116,7 +113,7 @@ export class PermissionPromptManager
         );
       }
 
-      this.pendingPrompts.set(promptId, pending);
+      this.pendingPrompt = pending;
       this.renderChatPrompt(pending);
     });
   }
@@ -126,7 +123,7 @@ export class PermissionPromptManager
       return;
     }
 
-    const pending = this.pendingPrompts.get(payload.promptId);
+    const pending = this.pendingPrompt;
     if (!pending || pending.sessionId !== payload.sessionId) {
       return;
     }
@@ -159,12 +156,12 @@ export class PermissionPromptManager
     promptId: string,
     response: RequestPermissionResponse,
   ): void {
-    const pending = this.pendingPrompts.get(promptId);
+    const pending = this.pendingPrompt;
     if (!pending) {
       return;
     }
 
-    this.pendingPrompts.delete(promptId);
+    this.pendingPrompt = null;
     pending.cancellationListener?.dispose();
     pending.resolve(response);
   }
@@ -254,6 +251,6 @@ export class PermissionPromptManager
   }
 
   private createPromptId(): string {
-    return `acp-permission-${++this.promptCounter}`;
+    return `acp-permission-${this.sessionContext?.sessionId}`;
   }
 }

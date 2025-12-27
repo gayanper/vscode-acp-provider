@@ -11,6 +11,8 @@ import {
   PROTOCOL_VERSION,
   RequestPermissionRequest,
   RequestPermissionResponse,
+  SessionModelState,
+  SessionModeState,
   SessionNotification,
 } from "@agentclientprotocol/sdk";
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
@@ -18,6 +20,7 @@ import { Readable, Writable } from "node:stream";
 import * as vscode from "vscode";
 import { DisposableBase } from "./disposables";
 import { AcpAgentConfigurationEntry } from "./types";
+import { AgentRegistryEntry } from "./agentRegistry";
 
 export interface AcpPermissionHandler {
   requestPermission(
@@ -43,6 +46,9 @@ export class AcpClient extends DisposableBase implements Client {
   private connection?: ClientSideConnection;
   private readyPromise?: Promise<void>;
   private agentCapabilities?: InitializeResponse;
+  private supportedModelState: SessionModelState | null = null;
+  private supportedModeState: SessionModeState | null = null;
+
   private readonly onSessionUpdateEmitter = this._register(
     new vscode.EventEmitter<SessionNotification>(),
   );
@@ -54,7 +60,7 @@ export class AcpClient extends DisposableBase implements Client {
   public readonly onDidStop: vscode.Event<void> = this.onDidStopEmitter.event;
 
   constructor(
-    private readonly agent: AcpAgentConfigurationEntry,
+    private readonly agent: AgentRegistryEntry,
     private readonly permissionHandler: AcpPermissionHandler,
     private readonly logChannel: vscode.OutputChannel,
   ) {
@@ -83,10 +89,22 @@ export class AcpClient extends DisposableBase implements Client {
     if (!this.connection) {
       throw new Error("ACP connection is not ready");
     }
-    return this.connection.newSession({
+    const response: NewSessionResponse = await this.connection.newSession({
       cwd,
       mcpServers: [],
     });
+    this.supportedModeState = response.modes || null;
+    this.supportedModelState = response.models || null;
+
+    return response;
+  }
+
+  getSupportedModelState(): SessionModelState | null {
+    return this.supportedModelState;
+  }
+
+  getSupportedModeState(): SessionModeState | null {
+    return this.supportedModeState;
   }
 
   async loadSession(sessionId: string, cwd: string): Promise<void> {

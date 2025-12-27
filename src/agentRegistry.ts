@@ -1,22 +1,24 @@
 import * as vscode from "vscode";
-import { DisposableStore } from "./disposables";
-import { AcpAgentConfigurationEntry } from "./types";
+import { DisposableBase } from "./disposables";
+import { AcpAgentConfigurationEntry, AgentType } from "./types";
 
-export interface AgentRegistryEntry extends AcpAgentConfigurationEntry {
+export type AgentRegistryEntry = AcpAgentConfigurationEntry & {
+  readonly id: AgentType;
   readonly label: string;
-}
+  readonly args: readonly string[];
+  readonly enabled: boolean;
+};
 
-export class AgentRegistry extends DisposableStore {
+export class AgentRegistry extends DisposableBase {
   private readonly agents = new Map<string, AgentRegistryEntry>();
-  private readonly onDidChangeEmitter = this.add(
-    new vscode.EventEmitter<void>(),
-  );
+  private readonly onDidChangeEmitter = new vscode.EventEmitter<void>();
+
   readonly onDidChange = this.onDidChangeEmitter.event;
 
   constructor() {
     super();
     this.reload();
-    this.add(
+    this._register(
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration("acpClient.agents")) {
           this.reload();
@@ -36,13 +38,12 @@ export class AgentRegistry extends DisposableStore {
   private reload(): void {
     this.agents.clear();
     const configuration = vscode.workspace.getConfiguration("acpClient");
-    const entries = configuration.get<readonly AcpAgentConfigurationEntry[]>(
+    const entries = configuration.get<Record<AgentType, AcpAgentConfigurationEntry>>(
       "agents",
-      [],
     );
 
-    for (const entry of entries) {
-      if (!entry.id || !entry.command) {
+    for (const [agentId, entry] of Object.entries(entries || {})) {
+      if (!entry.command) {
         continue;
       }
       if (entry.enabled === false) {
@@ -51,13 +52,13 @@ export class AgentRegistry extends DisposableStore {
 
       const normalized: AgentRegistryEntry = {
         ...entry,
-        label: entry.title ?? entry.id,
+        id: agentId as AgentType,
+        label: entry.label ?? agentId,
         args: entry.args ?? [],
         enabled: entry.enabled ?? true,
       };
-      this.agents.set(entry.id, normalized);
+      this.agents.set(agentId, normalized);
     }
-
     this.onDidChangeEmitter.fire();
   }
 }

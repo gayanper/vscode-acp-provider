@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 
 export const ACP_CHAT_SCHEME = "acp";
-export const ACP_CHAT_SESSION_TYPE = "acp";
 
 export function createChatSessionUri(agentId: string): vscode.Uri {
   return vscode.Uri.from({
@@ -14,11 +13,8 @@ export function createChatSessionUri(agentId: string): vscode.Uri {
 export function getAgentIdFromResource(
   resource: vscode.Uri,
 ): string | undefined {
-  if (resource.scheme !== ACP_CHAT_SCHEME) {
+  if (!resource.scheme || !resource.scheme.startsWith(ACP_CHAT_SCHEME)) {
     return undefined;
   }
-  if (resource.authority) {
-    return resource.authority;
-  }
-  return undefined;
+  return resource.scheme.substring(ACP_CHAT_SCHEME.length + 1);
 }

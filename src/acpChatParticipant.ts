@@ -1,25 +1,30 @@
 import { ContentBlock, SessionNotification } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 import { DisposableBase } from "./disposables";
-import { getWorkspaceCwd } from "./permittedPaths";
 import { PermissionPromptManager } from "./permissionPrompts";
-import { SessionManager } from "./sessionManager";
 import { SessionState } from "./sessionState";
 
-export class AcpChatParticipant extends DisposableBase {
-  readonly participant: vscode.ChatParticipant;
+export class AcpChatParticipant
+  extends DisposableBase
+  implements vscode.ChatParticipant
+{
+  private sessionState: SessionState | null = null;
+
+  requestHandler: vscode.ChatRequestHandler = this.handleRequest.bind(this);
+  onDidReceiveFeedback: vscode.Event<vscode.ChatResultFeedback> =
+    new vscode.EventEmitter<vscode.ChatResultFeedback>().event;
 
   constructor(
-    private readonly sessionManager: SessionManager,
     private readonly permissionManager: PermissionPromptManager,
     private readonly outputChannel: vscode.OutputChannel,
+    readonly agentId: string,
   ) {
     super();
-    this.participant = vscode.chat.createChatParticipant(
-      "acp",
-      this.handleRequest.bind(this),
-    );
-    this._register(this.participant);
+  }
+
+  init(sessionState: SessionState): void {
+    this.sessionState = sessionState;
+    this._register(vscode.chat.createChatParticipant(this.agentId, this.handleRequest.bind(this)));
   }
 
   private async handleRequest(
@@ -39,7 +44,7 @@ export class AcpChatParticipant extends DisposableBase {
     }
 
     // Defensive lookup: accept Uri or resource-like objects by using getByKey.
-    let sessionState = this.sessionManager.getByKey(sessionResource);
+    const sessionState = this.sessionState;
     if (!sessionState) {
       // Log minimal diagnostics to help debugging when resources don't match
       console.warn(
@@ -93,7 +98,7 @@ export class AcpChatParticipant extends DisposableBase {
     });
 
     try {
-      const sessionId = await this.ensureSession(sessionState);
+      const sessionId = sessionState.acpSessionId;
       this.refreshPermissionContext(sessionState, response, token);
 
       const promptBlocks = this.buildPromptBlocks(request, context);
@@ -503,16 +508,5 @@ ${lines.join("\n")}`
       return content.text;
     }
     return undefined;
-  }
-
-  private async ensureSession(state: SessionState): Promise<string> {
-    if (state.acpSessionId) {
-      return state.acpSessionId;
-    }
-
-    const cwd = getWorkspaceCwd();
-    const result = await state.client.createSession(cwd);
-    state.acpSessionId = result.sessionId;
-    return state.acpSessionId;
   }
 }

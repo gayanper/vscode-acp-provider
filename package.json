@@ -37,12 +37,40 @@
   "contributes": {
     "chatSessions": [
       {
-        "name": "acp",
-        "type": "acp",
+        "name": "opencode",
+        "type": "acp-opencode",
         "canDelegate": true,
-        "displayName": "Acp Agent",
-        "description": "Session based on external agent which supports ACP",
-        "icon": "$(hubot)"
+        "displayName": "OpenCode Agent [ACP]",
+        "description": "Chat sessions backed by the OpenCode ACP agent",
+        "icon": "$(hubot)",
+        "when": "config.acpClient.agents.opencode.enabled"
+      },
+      {
+        "name": "codex",
+        "type": "acp-codex",
+        "canDelegate": true,
+        "displayName": "Codex Agent [ACP]",
+        "description": "Chat sessions backed by the Codex ACP agent",
+        "icon": "$(hubot)",
+        "when": "config.acpClient.agents.codex.enabled"
+      },
+      {
+        "name": "cagent",
+        "type": "acp-cagent",
+        "canDelegate": true,
+        "displayName": "Cagent Agent [ACP]",
+        "description": "Chat sessions backed by the Cagent ACP agent",
+        "icon": "$(hubot)",
+         "when": "config.acpClient.agents.cagent.enabled"
+      },
+      {
+        "name": "geminicli",
+        "type": "acp-geminicli",
+        "canDelegate": true,
+        "displayName": "Gemini CLI Agent [ACP]",
+        "description": "Chat sessions backed by the Gemini CLI ACP agent",
+        "icon": "$(hubot)",
+        "when": "config.acpClient.agents.geminicli.enabled"
       }
     ],
     "commands": [
@@ -55,18 +83,19 @@
       "title": "VS Code ACP Client",
       "properties": {
         "acpClient.agents": {
-          "type": "array",
-          "items": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "opencode",
+              "codex",
+              "cagent",
+              "geminicli"
+            ]
+          },
+          "additionalProperties": {
             "type": "object",
-            "required": [
-              "id",
-              "command"
-            ],
+            "required": ["command"],
             "properties": {
-              "id": {
-                "type": "string",
-                "description": "Unique identifier for the ACP agent"
-              },
               "title": {
                 "type": "string",
                 "description": "Display label shown in the chat UI"
@@ -101,16 +130,17 @@
             }
           },
           "description": "List of ACP agents to use with their command and arguments",
-          "defa/ult": [
+          "default": [
             {
-              "id": "cagent",
-              "title": "Cagent",
-              "command": "/opt/homebrew/bin/cagent",
-              "args": [
-                "acp",
-                "/path/to/your/agents/cagent.yaml"
-              ],
-              "enabled": false
+              "cagent": {
+                "title": "Cagent",
+                "command": "/opt/homebrew/bin/cagent",
+                "args": [
+                  "acp",
+                  "/path/to/your/agents/cagent.yaml"
+                ],
+                "enabled": false
+              }
             }
           ]
         }

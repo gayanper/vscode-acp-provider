@@ -19,9 +19,3 @@ export class DisposableBase implements vscode.Disposable {
     }
   }
 }
-
-export class DisposableStore extends DisposableBase {
-  add<T extends vscode.Disposable>(value: T): T {
-    return this._register(value);
-  }
-}

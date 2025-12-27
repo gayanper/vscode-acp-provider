@@ -1,6 +1,12 @@
+export enum AgentType {
+  OpenCode = "opencode",
+  Codex = "codex",
+  Cagent = "cagent",
+  GeminiCLI = "geminicli",
+}
+
 export interface AcpAgentConfigurationEntry {
-  readonly id: string;
-  readonly title?: string;
+  readonly label?: string;
   readonly description?: string;
   readonly icon?: string;
   readonly command: string;
@@ -12,4 +18,10 @@ export interface AcpAgentConfigurationEntry {
 
 export const VscodeToolNames = {
   VscodeGetConfirmation: "vscode_get_confirmation",
+};
+
+export const VscodeSessionOptions = {
+  Mode: "mode",
+  Model: "model",
+  Agent: "agent",
 };
