@@ -58,24 +58,26 @@ function registerAgents(params: {
       outputChannel,
       `${ACP_CHAT_SCHEME}-${agent.id}`,
     );
-    
+    const participantInstance = vscode.chat.createChatParticipant(
+      `${ACP_CHAT_SCHEME}-${agent.id}`,
+      participant.createHandler(),
+    );
     const sessionContentProvider = new AcpChatSessionContentProvider({
       agent,
       logChannel: outputChannel,
       participant,
     });
-
     context.subscriptions.push(
       vscode.chat.registerChatSessionContentProvider(
         `${ACP_CHAT_SCHEME}-${agent.id}`,
         sessionContentProvider,
-        participant,
+        participantInstance,
       ),
     );
 
     context.subscriptions.push(
       vscode.chat.registerChatSessionItemProvider(
-        ACP_CHAT_SCHEME,
+        `${ACP_CHAT_SCHEME}-${agent.id}`,
         sessionContentProvider,
       ),
     );

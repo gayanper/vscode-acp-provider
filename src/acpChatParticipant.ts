@@ -4,10 +4,7 @@ import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
 import { SessionState } from "./sessionState";
 
-export class AcpChatParticipant
-  extends DisposableBase
-  implements vscode.ChatParticipant
-{
+export class AcpChatParticipant extends DisposableBase {
   private sessionState: SessionState | null = null;
 
   requestHandler: vscode.ChatRequestHandler = this.handleRequest.bind(this);
@@ -24,7 +21,10 @@ export class AcpChatParticipant
 
   init(sessionState: SessionState): void {
     this.sessionState = sessionState;
-    this._register(vscode.chat.createChatParticipant(this.agentId, this.handleRequest.bind(this)));
+  }
+
+  createHandler(): vscode.ChatRequestHandler {
+    return this.handleRequest.bind(this);
   }
 
   private async handleRequest(

@@ -61,7 +61,7 @@
         "displayName": "Cagent Agent [ACP]",
         "description": "Chat sessions backed by the Cagent ACP agent",
         "icon": "$(hubot)",
-         "when": "config.acpClient.agents.cagent.enabled"
+        "when": "config.acpClient.agents.cagent.enabled"
       },
       {
         "name": "geminicli",
@@ -94,7 +94,9 @@
           },
           "additionalProperties": {
             "type": "object",
-            "required": ["command"],
+            "required": [
+              "command"
+            ],
             "properties": {
               "title": {
                 "type": "string",

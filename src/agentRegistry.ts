@@ -38,9 +38,10 @@ export class AgentRegistry extends DisposableBase {
   private reload(): void {
     this.agents.clear();
     const configuration = vscode.workspace.getConfiguration("acpClient");
-    const entries = configuration.get<Record<AgentType, AcpAgentConfigurationEntry>>(
-      "agents",
-    );
+    const entries =
+      configuration.get<Record<AgentType, AcpAgentConfigurationEntry>>(
+        "agents",
+      );
 
     for (const [agentId, entry] of Object.entries(entries || {})) {
       if (!entry.command) {

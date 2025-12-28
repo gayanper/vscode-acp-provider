@@ -14,6 +14,8 @@ import {
   SessionModelState,
   SessionModeState,
   SessionNotification,
+  SetSessionModelRequest,
+  SetSessionModeRequest,
 } from "@agentclientprotocol/sdk";
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
@@ -157,6 +159,31 @@ export class AcpClient extends DisposableBase implements Client {
 
   async sessionUpdate(notification: SessionNotification): Promise<void> {
     this.onSessionUpdateEmitter.fire(notification);
+  }
+
+  async changeMode(sessionId: string,  modeId: string): Promise<void> {
+    await this.ensureReady();
+    if (!this.connection) {
+      throw new Error("ACP connection is not ready");
+    }
+    const resuest: SetSessionModeRequest = {
+      modeId,
+      sessionId
+    }
+    await this.connection.setSessionMode(resuest);
+  }
+
+  async changeModel(sessionId: string, modelId: string): Promise<void> {
+    await this.ensureReady();
+    if (!this.connection) {
+      throw new Error("ACP connection is not ready");
+    }
+
+    const request: SetSessionModelRequest = {
+      modelId,
+      sessionId
+    }
+    await this.connection.setSessionModel(request);
   }
 
   dispose(): void {
