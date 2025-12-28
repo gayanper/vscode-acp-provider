@@ -9,6 +9,7 @@ import {
   createPermissionResolveCommandId,
   PermissionPromptManager,
 } from "./permissionPrompts";
+import { createAcpChatSessionItemProvider } from "./acpChatSessionItemProvider";
 
 export async function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("ACP Client", {
@@ -63,7 +64,7 @@ function registerAgents(params: {
       outputChannel,
     );
     context.subscriptions.push(sessionContentProvider);
-    
+
     const participantInstance = vscode.chat.createChatParticipant(
       `${ACP_CHAT_SCHEME}-${agent.id}`,
       participant.createHandler(),
@@ -76,16 +77,18 @@ function registerAgents(params: {
       ),
     );
 
+    const sessionItemProvider = createAcpChatSessionItemProvider(
+      sessionManager,
+      outputChannel,
+    );
+    context.subscriptions.push(sessionItemProvider);
     context.subscriptions.push(
       vscode.chat.registerChatSessionItemProvider(
         `${ACP_CHAT_SCHEME}-${agent.id}`,
-        sessionContentProvider,
+        sessionItemProvider,
       ),
     );
   });
 }
 
-export function deactivate(): void {
-  
-}
-
+export function deactivate(): void {}

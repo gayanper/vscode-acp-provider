@@ -19,7 +19,7 @@ const EMPTY_CHAT_OPTIONS: Record<string, vscode.ChatSessionProviderOptionItem> =
 
 export class AcpChatSessionContentProvider
   extends DisposableBase
-  implements vscode.ChatSessionContentProvider, vscode.ChatSessionItemProvider
+  implements vscode.ChatSessionContentProvider
 {
   constructor(
     private readonly sessionManager: AcpSessionManager,
@@ -30,51 +30,22 @@ export class AcpChatSessionContentProvider
   }
 
   // start event definitions --------------------------------------------------
-
-  private readonly _onDidChangeChatSessionItems: vscode.EventEmitter<void> =
-    new vscode.EventEmitter<void>();
-
-  onDidChangeChatSessionItems: vscode.Event<void> =
-    this._onDidChangeChatSessionItems.event;
-
-  private readonly _onDidCommitChatSessionItem: vscode.EventEmitter<{
-    original: vscode.ChatSessionItem;
-    modified: vscode.ChatSessionItem;
-  }> = new vscode.EventEmitter<{
-    original: vscode.ChatSessionItem;
-    modified: vscode.ChatSessionItem;
-  }>();
-
-  onDidCommitChatSessionItem: vscode.Event<{
-    original: vscode.ChatSessionItem;
-    modified: vscode.ChatSessionItem;
-  }> = this._onDidCommitChatSessionItem.event;
-
   private readonly _onDidChangeChatSessionOptions: vscode.EventEmitter<vscode.ChatSessionOptionChangeEvent> =
     new vscode.EventEmitter<vscode.ChatSessionOptionChangeEvent>();
   onDidChangeChatSessionOptions?: vscode.Event<vscode.ChatSessionOptionChangeEvent> =
     this._onDidChangeChatSessionOptions.event;
-
   // end event definitions -----------------------------------------------------
-
-  provideChatSessionItems(
-    token: vscode.CancellationToken,
-  ): vscode.ProviderResult<vscode.ChatSessionItem[]> {
-    return new Promise(async (resolve) => {
-      const items: vscode.ChatSessionItem[] = [];
-      resolve(items);
-    });
-  }
 
   async provideChatSessionContent(
     resource: vscode.Uri,
     _token: vscode.CancellationToken,
   ): Promise<vscode.ChatSession> {
-
     this.sessionManager.create(resource).then((session) => {
       this.participant.init(session);
 
-      this.logChannel.debug(`firing option change for resource ${resource.toString()}`);
+      this.logChannel.debug(
+        `firing option change for resource ${resource.toString()}`,
+      );
       this._onDidChangeChatSessionOptions.fire({
         resource,
         updates: [
@@ -101,7 +72,9 @@ export class AcpChatSessionContentProvider
   // Currently in 1.108.0-insider this api is only called once when the provider is registered.
   // so we create a session and use the information from that. The same session will be used later for first providing content api call.
   async provideChatSessionProviderOptions(): Promise<vscode.ChatSessionProviderOptions> {
-    return this.sessionManager.getDefault().then((session) => this.buildOptionsGroup(session));
+    return this.sessionManager
+      .getDefault()
+      .then((session) => this.buildOptionsGroup(session));
   }
 
   private buildOptionsGroup(
@@ -153,30 +126,25 @@ export class AcpChatSessionContentProvider
   ): Promise<void> {
     const session = await this.sessionManager.get(resource);
     if (!session) {
-      this.logChannel.warn(`No session found to handle provideHandleOptionsChange for ${resource.toString()}`);
+      this.logChannel.warn(
+        `No session found to handle provideHandleOptionsChange for ${resource.toString()}`,
+      );
       return;
     }
 
     updates.forEach((update) => {
       if (update.optionId === VscodeSessionOptions.Mode && update.value) {
-        session.client.changeMode(
-          session.acpSessionId,
-          update.value,
-        );
+        session.client.changeMode(session.acpSessionId, update.value);
       }
 
       if (update.optionId === VscodeSessionOptions.Model && update.value) {
-        session.client.changeModel(
-          session.acpSessionId,
-          update.value,
-        );
+        session.client.changeModel(session.acpSessionId, update.value);
       }
     });
   }
 
   override dispose(): void {
+    this._onDidChangeChatSessionOptions.dispose();
     super.dispose();
-    this._onDidChangeChatSessionItems.dispose();
-    this._onDidCommitChatSessionItem.dispose();
   }
 }

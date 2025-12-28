@@ -12,6 +12,7 @@ import {
   PROTOCOL_VERSION,
   RequestPermissionRequest,
   RequestPermissionResponse,
+  SessionInfo,
   SessionModelState,
   SessionModeState,
   SessionNotification,
@@ -24,6 +25,7 @@ import * as vscode from "vscode";
 import { DisposableBase } from "./disposables";
 import { AcpAgentConfigurationEntry } from "./types";
 import { AgentRegistryEntry } from "./agentRegistry";
+import { AcpSessionReader, createSessionReader } from "./acpSessionReader";
 
 export interface AcpPermissionHandler {
   requestPermission(
@@ -51,6 +53,7 @@ export class AcpClient extends DisposableBase implements Client {
   private agentCapabilities?: InitializeResponse;
   private supportedModelState: SessionModelState | null = null;
   private supportedModeState: SessionModeState | null = null;
+  private readonly sessionReader: AcpSessionReader;
 
   private readonly onSessionUpdateEmitter = this._register(
     new vscode.EventEmitter<SessionNotification>(),
@@ -65,9 +68,10 @@ export class AcpClient extends DisposableBase implements Client {
   constructor(
     private readonly agent: AgentRegistryEntry,
     private readonly permissionHandler: AcpPermissionHandler,
-    private readonly logChannel: vscode.OutputChannel,
+    private readonly logChannel: vscode.LogOutputChannel,
   ) {
     super();
+    this.sessionReader = createSessionReader(agent, logChannel);
   }
 
   async ensureReady(): Promise<void> {
@@ -96,7 +100,8 @@ export class AcpClient extends DisposableBase implements Client {
       cwd,
       mcpServers: [],
     };
-    const response: NewSessionResponse = await this.connection.newSession(request);
+    const response: NewSessionResponse =
+      await this.connection.newSession(request);
     this.supportedModeState = response.modes || null;
     this.supportedModelState = response.models || null;
 
@@ -163,15 +168,15 @@ export class AcpClient extends DisposableBase implements Client {
     this.onSessionUpdateEmitter.fire(notification);
   }
 
-  async changeMode(sessionId: string,  modeId: string): Promise<void> {
+  async changeMode(sessionId: string, modeId: string): Promise<void> {
     await this.ensureReady();
     if (!this.connection) {
       throw new Error("ACP connection is not ready");
     }
     const resuest: SetSessionModeRequest = {
       modeId,
-      sessionId
-    }
+      sessionId,
+    };
     await this.connection.setSessionMode(resuest);
   }
 
@@ -183,8 +188,8 @@ export class AcpClient extends DisposableBase implements Client {
 
     const request: SetSessionModelRequest = {
       modelId,
-      sessionId
-    }
+      sessionId,
+    };
     await this.connection.setSessionModel(request);
   }
 
@@ -248,5 +253,11 @@ export class AcpClient extends DisposableBase implements Client {
     this.child = undefined;
     this.connection = undefined;
     this.readyPromise = undefined;
+  }
+
+  // this method is not purely a ACP protocol implementation due to it is not part of the spec yet.
+  // so the implementation is done for few agents with their cli apis that list sessions.
+  async listSessions(cwd: string): Promise<SessionInfo[]> {
+    return this.sessionReader.listSessions(cwd);
   }
 }

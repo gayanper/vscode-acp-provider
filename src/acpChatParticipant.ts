@@ -63,8 +63,7 @@ export class AcpChatParticipant extends DisposableBase {
     if (token.isCancellationRequested) {
       return;
     }
-
-    session.status = "running";
+    this.session?.markAsInProgress();
     response.progress("Connecting to ACP agent...");
 
     this.cancelPendingRequest(session);
@@ -108,7 +107,7 @@ export class AcpChatParticipant extends DisposableBase {
         response.markdown(
           "> ℹ️ **Info:** Prompt cannot be empty. Please provide a question or instruction for the ACP agent.",
         );
-        session.status = "idle";
+        session.markAsCompleted();
         return;
       }
       if (token.isCancellationRequested) {
@@ -120,7 +119,7 @@ export class AcpChatParticipant extends DisposableBase {
         return;
       }
 
-      session.status = "idle";
+      session.markAsCompleted();
       // Log detailed stop reason to the ACP Output channel for troubleshooting.
       this.outputChannel.appendLine(
         `[debug] ACP agent finished with stop reason: ${result.stopReason}`,
@@ -129,7 +128,7 @@ export class AcpChatParticipant extends DisposableBase {
       if (token.isCancellationRequested) {
         return;
       }
-      session.status = "error";
+      session.markAsFailed();
       const message =
         error instanceof Error ? error.message : String(error ?? "Unknown");
       // Render a Copilot-style error message in chat
