@@ -22,10 +22,9 @@ import {
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import * as vscode from "vscode";
-import { DisposableBase } from "./disposables";
-import { AcpAgentConfigurationEntry } from "./types";
-import { AgentRegistryEntry } from "./agentRegistry";
 import { AcpSessionReader, createSessionReader } from "./acpSessionReader";
+import { AgentRegistryEntry } from "./agentRegistry";
+import { DisposableBase } from "./disposables";
 
 export interface AcpPermissionHandler {
   requestPermission(
@@ -190,7 +189,7 @@ export class AcpClient extends DisposableBase implements Client {
       modelId,
       sessionId,
     };
-    await this.connection.setSessionModel(request);
+    await this.connection.unstable_setSessionModel(request);
   }
 
   dispose(): void {

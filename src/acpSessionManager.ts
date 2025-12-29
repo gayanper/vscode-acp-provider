@@ -1,14 +1,13 @@
+import { SessionInfo } from "@agentclientprotocol/sdk";
 import vscode, {
   ChatSessionItem,
-  ChatSessionStatus,
-  WorkspaceConfiguration,
+  ChatSessionStatus
 } from "vscode";
 import { AcpClient, AcpPermissionHandler } from "./acpClient";
 import { AgentRegistryEntry } from "./agentRegistry";
 import { createSessionType } from "./chatIdentifiers";
 import { DisposableBase } from "./disposables";
 import { getWorkspaceCwd } from "./permittedPaths";
-import { SessionInfo } from "@agentclientprotocol/sdk";
 
 export class Session {
   private _status: ChatSessionStatus;
@@ -101,9 +100,11 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
   }
 
   async getDefault(cwd: string = getWorkspaceCwd()): Promise<Session> {
-    let session = this.activeSessions.get(
-      this.createSessionKey(this.createSessionResourceUri(DEFAULT_SESSION_ID)),
+    const DEFAULT_KEY = this.createSessionKey(
+      this.createSessionResourceUri(DEFAULT_SESSION_ID)
     );
+
+    let session = this.activeSessions.get(DEFAULT_KEY);
     if (session) {
       return session;
     }
@@ -123,7 +124,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
       },
     );
 
-    this.activeSessions.set(DEFAULT_SESSION_ID, session);
+    this.activeSessions.set(DEFAULT_KEY, session);
     return session;
   }
 
@@ -139,15 +140,15 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     }
 
     // check if the default session exists, if so use it and update the map
-    const defaultKey = this.createSessionKey(
-      this.createSessionResourceUri(DEFAULT_SESSION_ID),
+    const DEFAULT_KEY = this.createSessionKey(
+      this.createSessionResourceUri(DEFAULT_SESSION_ID)
     );
-    session = this.activeSessions.get(defaultKey);
+    session = this.activeSessions.get(DEFAULT_KEY);
     if (session) {
       this.logger.debug(
         `Reusing default session for resource ${vscodeResource.toString()}`,
       );
-      this.activeSessions.delete(defaultKey);
+      this.activeSessions.delete(DEFAULT_KEY);
       this.activeSessions.set(key, session);
       return session;
     }
@@ -211,12 +212,19 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
           ? ChatSessionStatus.InProgress
           : ChatSessionStatus.Completed,
         resource: resource,
+        timing: {
+          startTime: Number(session.updatedAt)
+        }
       });
     }
 
+    const DEFAULT_KEY = this.createSessionKey(
+      this.createSessionResourceUri(DEFAULT_SESSION_ID),
+    );
+
     for (const session of this.activeSessions.values()) {
       // skip any sessions already in disk sessions and also skip default session
-      if (this.diskSessions.has(session.acpSessionId) || session.acpSessionId === DEFAULT_SESSION_ID) {
+      if (this.diskSessions.has(session.acpSessionId) || session.vscodeResource.toString() === DEFAULT_KEY) {
         continue;
       }
 
@@ -227,6 +235,17 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
       });
     }
     return chatSessionItems;
+  }
+
+  async dispose(): Promise<void> {
+    const DEFAULT_KEY = this.createSessionKey(
+      this.createSessionResourceUri(DEFAULT_SESSION_ID),
+    );
+    for (const session of this.activeSessions.values()) {
+      if (session.vscodeResource.toString() === DEFAULT_KEY) {
+        await this.client.cancel(session.acpSessionId)
+      }
+    }
   }
 
   private async loadDiskSessionsIfNeeded(): Promise<void> {
