@@ -1,12 +1,14 @@
 import vscode from "vscode";
 import { AcpSessionManager } from "./acpSessionManager";
 import { DisposableBase } from "./disposables";
+import { SessionDb } from "./acpSessionDb";
 
 export function createAcpChatSessionItemProvider(
   sessionManager: AcpSessionManager,
+  sessionDb: SessionDb,
   logger: vscode.LogOutputChannel,
 ): vscode.ChatSessionItemProvider & vscode.Disposable {
-  return new AcpChatSessionItemProvider(sessionManager, logger);
+  return new AcpChatSessionItemProvider(sessionManager, sessionDb, logger);
 }
 
 class AcpChatSessionItemProvider
@@ -15,6 +17,7 @@ class AcpChatSessionItemProvider
 {
   constructor(
     private readonly sessionManager: AcpSessionManager,
+    private readonly sessionDb: SessionDb,
     private readonly logger: vscode.LogOutputChannel,
   ) {
     super();
@@ -33,6 +36,13 @@ class AcpChatSessionItemProvider
         this._onDidCommitChatSessionItem.fire({
           original: originalItem,
           modified: modifiedItem,
+        });
+
+        this.sessionDb.upsertSession(original.agent.id, {
+          sessionId: modified.acpSessionId,
+          cwd: modified.cwd,
+          title: modified.title,
+          updatedAt: modified.updatedAt,
         });
 
         this.logger.debug(

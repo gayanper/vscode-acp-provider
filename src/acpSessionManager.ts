@@ -6,9 +6,12 @@ import { createSessionUri, getSessionId } from "./chatIdentifiers";
 import { DisposableBase } from "./disposables";
 import { getWorkspaceCwd } from "./permittedPaths";
 import { TurnBuilder } from "./turnBuilder";
+import { SessionDb } from "./acpSessionDb";
 
 export class Session {
   private _status: ChatSessionStatus;
+  private _title: string;
+  private _updatedAt: number;
   pendingRequest?: {
     cancellation: vscode.CancellationTokenSource;
     permissionContext?: vscode.Disposable;
@@ -20,9 +23,23 @@ export class Session {
     readonly client: AcpClient,
     readonly acpSessionId: string,
     readonly defaultChatOptions: { modeId: string; modelId: string },
+    readonly cwd: string = getWorkspaceCwd(),
   ) {
     this._status = ChatSessionStatus.InProgress;
     this.pendingRequest = undefined;
+    this._title = `Session [${agent.id}] ${acpSessionId}`;
+    this._updatedAt = Date.now();
+  }
+
+  get title(): string {
+    return this._title;
+  }
+
+  set title(value: string) {
+    this._title = value;
+  }
+  get updatedAt(): number {
+    return this._updatedAt;
   }
 
   get status(): ChatSessionStatus {
@@ -31,14 +48,17 @@ export class Session {
 
   markAsInProgress(): void {
     this._status = ChatSessionStatus.InProgress;
+    this._updatedAt = Date.now();
   }
 
   markAsCompleted(): void {
     this._status = ChatSessionStatus.Completed;
+    this._updatedAt = Date.now();
   }
 
   markAsFailed(): void {
     this._status = ChatSessionStatus.Failed;
+    this._updatedAt = Date.now();
   }
 }
 
@@ -55,11 +75,12 @@ export interface AcpSessionManager extends vscode.Disposable {
 }
 
 export function createAcpSessionManager(
+  sessionDb: SessionDb,
   agent: AgentRegistryEntry,
   permissionHandler: AcpPermissionHandler,
   logger: vscode.LogOutputChannel,
 ): AcpSessionManager {
-  return new SessionManager(agent, permissionHandler, logger);
+  return new SessionManager(sessionDb, agent, permissionHandler, logger);
 }
 
 const DEFAULT_SESSION_ID = "default";
@@ -67,6 +88,7 @@ const DEFAULT_SESSION_ID = "default";
 class SessionManager extends DisposableBase implements AcpSessionManager {
   private readonly client: AcpClient;
   constructor(
+    private readonly sessionDb: SessionDb,
     private readonly agent: AgentRegistryEntry,
     readonly permissionHandler: AcpPermissionHandler,
     private readonly logger: vscode.LogOutputChannel,
@@ -177,7 +199,6 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
         const resource = this.createSessionUri(
           this.defaultSession.acpSessionId,
         );
-        const key = this.createSessionKey(resource);
         const newSession = new Session(
           this.defaultSession.agent,
           resource,
@@ -258,7 +279,6 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     const chatSessionItems: ChatSessionItem[] = [];
     for (const [sessionId, session] of this.diskSessions) {
       const resource = this.createSessionUri(sessionId);
-      const key = this.createSessionKey(resource);
 
       chatSessionItems.push({
         label: session.title || session.sessionId,
@@ -276,9 +296,18 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     reload: boolean = false,
   ): Promise<void> {
     if (!this.diskSessions || reload) {
-      const sessions: SessionInfo[] =
-        await this.client.listSessions(getWorkspaceCwd());
-      this.diskSessions = new Map(sessions.map((s) => [s.sessionId, s]));
+      const data = await this.sessionDb.listSessions(this.agent.id);
+      this.diskSessions = new Map<string, SessionInfo>(
+        data.map((s) => [
+          s.sessionId,
+          {
+            cwd: s.cwd,
+            sessionId: s.sessionId,
+            title: s.title,
+            updatedAt: String(s.updatedAt),
+          } as SessionInfo,
+        ]),
+      );
     }
   }
 }

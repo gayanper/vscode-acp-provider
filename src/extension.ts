@@ -10,6 +10,7 @@ import {
   PermissionPromptManager,
 } from "./permissionPrompts";
 import { createAcpChatSessionItemProvider } from "./acpChatSessionItemProvider";
+import { createSessionDb, SessionDb } from "./acpSessionDb";
 
 export async function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("ACP Client", {
@@ -17,9 +18,13 @@ export async function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(outputChannel);
 
+  const sessionDb = createSessionDb(context, outputChannel);
+  context.subscriptions.push(sessionDb);
+
   const agentRegistry = new AgentRegistry();
   registerAgents({
     registry: agentRegistry,
+    sessionDb,
     outputChannel,
     context,
   });
@@ -27,6 +32,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 function registerAgents(params: {
   registry: AgentRegistry;
+  sessionDb: SessionDb;
   outputChannel: vscode.LogOutputChannel;
   context: vscode.ExtensionContext;
 }): void {
@@ -52,6 +58,7 @@ function registerAgents(params: {
     context.subscriptions.push(participant);
 
     const sessionManager = createAcpSessionManager(
+      params.sessionDb,
       agent,
       permisionPromptsManager,
       outputChannel,
@@ -67,7 +74,7 @@ function registerAgents(params: {
 
     const participantInstance = vscode.chat.createChatParticipant(
       `${ACP_CHAT_SCHEME}-${agent.id}`,
-      participant.createHandler(),
+      participant.requestHandler,
     );
     context.subscriptions.push(
       vscode.chat.registerChatSessionContentProvider(
@@ -79,6 +86,7 @@ function registerAgents(params: {
 
     const sessionItemProvider = createAcpChatSessionItemProvider(
       sessionManager,
+      params.sessionDb,
       outputChannel,
     );
     context.subscriptions.push(sessionItemProvider);

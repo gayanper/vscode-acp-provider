@@ -23,10 +23,6 @@ export class AcpChatParticipant extends DisposableBase {
     this.session = session;
   }
 
-  createHandler(): vscode.ChatRequestHandler {
-    return this.handleRequest.bind(this);
-  }
-
   private async handleRequest(
     request: vscode.ChatRequest,
     context: vscode.ChatContext,
@@ -119,6 +115,10 @@ export class AcpChatParticipant extends DisposableBase {
       }
 
       session.markAsCompleted();
+      if (!context.chatSessionContext.isUntitled) {
+        session.title = context.chatSessionContext.chatSessionItem.label;
+      }
+
       // Log detailed stop reason to the ACP Output channel for troubleshooting.
       this.outputChannel.appendLine(
         `[debug] ACP agent finished with stop reason: ${result.stopReason}`,
