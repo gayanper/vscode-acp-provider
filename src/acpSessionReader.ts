@@ -1,8 +1,7 @@
 import { SessionInfo } from "@agentclientprotocol/sdk";
-import { getWorkspaceCwd } from "./permittedPaths";
-import { AgentRegistryEntry } from "./agentRegistry";
-import { execSync, spawn } from "child_process";
+import { spawn } from "child_process";
 import { LogOutputChannel } from "vscode";
+import { AgentRegistryEntry } from "./agentRegistry";
 import { AgentType } from "./types";
 
 export interface AcpSessionReader {

@@ -5,18 +5,6 @@ import { AcpSessionManager, Session } from "./acpSessionManager";
 import { DisposableBase } from "./disposables";
 import { VscodeSessionOptions } from "./types";
 
-const EMPTY_CHAT_OPTIONS: Record<string, vscode.ChatSessionProviderOptionItem> =
-  {
-    [VscodeSessionOptions.Mode]: {
-      id: "",
-      name: "",
-    },
-    [VscodeSessionOptions.Model]: {
-      id: "",
-      name: "",
-    },
-  };
-
 export class AcpChatSessionContentProvider
   extends DisposableBase
   implements vscode.ChatSessionContentProvider

@@ -1,6 +1,5 @@
 import * as vscode from "vscode";
 
-/** Simple helper similar to VS Code's internal Disposable base class. */
 export class DisposableBase implements vscode.Disposable {
   private readonly _disposables: vscode.Disposable[] = [];
 

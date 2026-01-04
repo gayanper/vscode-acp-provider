@@ -1,9 +1,5 @@
+import { SessionNotification } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
-import {
-  SessionNotification,
-  ContentBlock,
-  ToolCall,
-} from "@agentclientprotocol/sdk";
 
 /**
  * Builds VS Code chat turns from ACP session notification events.

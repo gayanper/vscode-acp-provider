@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import { AgentType } from "./types";
 
 export const ACP_CHAT_SCHEME = "acp";
 
