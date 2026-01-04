@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { ContentBlock, SessionNotification } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 import { AcpSessionManager, Session } from "./acpSessionManager";

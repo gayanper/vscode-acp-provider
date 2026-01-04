@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /// <reference path="../vscode.proposed.chatSessionsProvider.d.ts" />
 import * as vscode from "vscode";
 import { AcpChatParticipant } from "./acpChatParticipant";

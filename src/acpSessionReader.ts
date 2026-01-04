@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import { SessionInfo } from "@agentclientprotocol/sdk";
 import { spawn } from "child_process";
 import { LogOutputChannel } from "vscode";

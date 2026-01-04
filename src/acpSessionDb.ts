@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import fs from "fs";
 import { DatabaseSync } from "node:sqlite";
 import path from "path";

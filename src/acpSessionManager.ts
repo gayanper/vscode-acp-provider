@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 import vscode, { ChatSessionItem, ChatSessionStatus } from "vscode";
 import { AcpClient, AcpPermissionHandler } from "./acpClient";
 import { DiskSession, SessionDb } from "./acpSessionDb";
