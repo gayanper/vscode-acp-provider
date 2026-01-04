@@ -54,7 +54,7 @@ To build the extension locally you can follow these steps:
 
 1. Clone the repository
    ```bash
-   git clone https://github.com/gayanperera/vscode-acp-provider.git
+   git clone https://github.com/gayanper/vscode-acp-provider.git
    ```
 2. Navigate to the project directory
    ```bash
