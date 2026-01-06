@@ -33,7 +33,8 @@
   "main": "./out/extension.js",
   "enabledApiProposals": [
     "chatSessionsProvider",
-    "chatParticipantPrivate"
+    "chatParticipantPrivate",
+    "chatParticipantAdditions"
   ],
   "contributes": {
     "chatSessions": [

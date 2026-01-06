@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
-import { ContentBlock, SessionNotification } from "@agentclientprotocol/sdk";
+import {
+  ContentBlock,
+  SessionNotification,
+  ToolCallUpdate,
+} from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 import { AcpSessionManager, Session } from "./acpSessionManager";
 import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
+import {
+  ChatResponseReferencePart,
+  ChatResponseWarningPart,
+  Progress,
+} from "vscode";
 
 export class AcpChatParticipant extends DisposableBase {
   requestHandler: vscode.ChatRequestHandler = this.handleRequest.bind(this);
@@ -18,6 +27,16 @@ export class AcpChatParticipant extends DisposableBase {
   ) {
     super();
   }
+
+  private readonly toolCallProgressMap = new Map<
+    string,
+    {
+      reporter: vscode.Progress<
+        ChatResponseReferencePart | ChatResponseWarningPart
+      >;
+      complete: (value: string | PromiseLike<string>) => void;
+    }
+  >();
 
   private async handleRequest(
     request: vscode.ChatRequest,
@@ -405,51 +424,102 @@ ${lines.join("\n")}`
     response: vscode.ChatResponseStream,
   ): void {
     const update = notification.update;
-    this.logger.trace(`Handling chat request for agent ${this.agentId} - update : ${JSON.stringify(update)}`);
+    this.logger.trace(
+      `Handling chat request for agent ${this.agentId} - update : ${JSON.stringify(update)}`,
+    );
 
     switch (update.sessionUpdate) {
       case "agent_message_chunk": {
         const text = this.getContentText(update.content);
         if (text) {
-          // Render agent text output as normal
           response.markdown(text);
         } else {
-          // Non-text chunk: render a brief notice in chat and log details to output channel
-          response.markdown(
-            "> ℹ️ **Info:** Received a non-text message from the agent that cannot be rendered.",
-          );
-          this.logger.info(
-            `[debug] Received non-text message chunk (non-renderable) from agent.`,
+          response.warning(
+            "Received a non-text message from the agent that cannot be rendered.",
           );
         }
         break;
       }
       case "agent_thought_chunk": {
-        const thought =
-          this.getContentText(update.content) ?? "Agent is thinking...";
-        response.markdown(`> ${thought}`);
+        const thinkingText = this.getContentText(update.content);
+        if (thinkingText) {
+          response.thinkingProgress({
+            id: "agent_thought",
+            text: thinkingText,
+          });
+        }
         break;
       }
       case "tool_call": {
-        const title = update.title ?? "Tool call";
-        response.progress(`${title} (${update.status ?? "pending"})`);
+        const toolCallText = update.title;
+        if (toolCallText) {
+          let icon = "🔧";
+          switch (update.kind) {
+            case "read":
+              icon = "📖";
+              break;
+            case "edit":
+              icon = "✏️";
+              break;
+            case "execute":
+              icon = "⚙️";
+              break;
+            case "search":
+              icon = "🔍";
+              break;
+            case "delete":
+              icon = "🗑️";
+              break;
+          }
+          response.progress(`${icon} ${toolCallText}`, (progress) => {
+            return new Promise<string>((resolve) => {
+              this.toolCallProgressMap.set(update.toolCallId, {
+                reporter: progress,
+                complete: resolve,
+              });
+            });
+          });
+        }
         break;
       }
       case "tool_call_update": {
-        const status = update.status ?? "in_progress";
-        response.progress(`Tool update: ${status}`);
+        if (update.status === "completed" || update.status === "failed") {
+          const toolCallProgress = this.toolCallProgressMap.get(
+            update.toolCallId,
+          );
+          if (toolCallProgress) {
+            update.content?.forEach((c) => {
+              if (c.type === "content") {
+                const contentText = this.getContentText(c.content);
+                if (contentText) {
+                  toolCallProgress.reporter.report({
+                    value: new vscode.MarkdownString(contentText),
+                  });
+                }
+              }
+            });
+            toolCallProgress.complete(this.getBestTitleValue(update));
+            this.toolCallProgressMap.delete(update.toolCallId);
+          }
+        }
         break;
       }
       case "plan": {
-        response.progress(`Plan received (${update.entries.length} steps)`);
+        if (update.entries.length > 0) {
+          response.markdown("## Plan\n");
+          update.entries.forEach((entry, index) => {
+            const entryText = entry.content;
+            response.markdown(
+              `-  [${entry.status === "completed" ? "x" : " "}] ${entryText}\n`,
+            );
+          });
+        }
         break;
       }
       case "available_commands_update": {
-        response.progress("Agent shared available commands.");
         break;
       }
       case "current_mode_update": {
-        response.progress(`Agent mode: ${update.currentModeId}`);
         break;
       }
       default:
@@ -508,5 +578,33 @@ ${lines.join("\n")}`
       return content.text;
     }
     return undefined;
+  }
+
+  private getBestTitleValue(toolCallUpdate: ToolCallUpdate): string {
+    if (toolCallUpdate.title) {
+      return toolCallUpdate.title;
+    }
+
+    if (toolCallUpdate.rawInput) {
+      return JSON.stringify(toolCallUpdate.rawInput);
+    }
+
+    if (toolCallUpdate.content && toolCallUpdate.content.length > 0) {
+      const content = toolCallUpdate.content.findLast(
+        (c) => c.type === "content",
+      )?.content;
+      if (content) {
+        const text = this.getContentText(content);
+        if (text) {
+          return text;
+        }
+      }
+    }
+
+    if (toolCallUpdate.status === "completed" && toolCallUpdate.rawOutput) {
+      return JSON.stringify(toolCallUpdate.rawOutput);
+    }
+
+    return "";
   }
 }
