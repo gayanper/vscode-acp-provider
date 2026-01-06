@@ -13,7 +13,7 @@ export class AcpChatParticipant extends DisposableBase {
   constructor(
     private readonly permissionManager: PermissionPromptManager,
     private readonly sessionManager: AcpSessionManager,
-    private readonly outputChannel: vscode.OutputChannel,
+    private readonly logger: vscode.LogOutputChannel,
     readonly agentId: string,
   ) {
     super();
@@ -119,7 +119,7 @@ export class AcpChatParticipant extends DisposableBase {
       this.sessionManager.syncSessionState(sessionResource, session);
 
       // Log detailed stop reason to the ACP Output channel for troubleshooting.
-      this.outputChannel.appendLine(
+      this.logger.info(
         `[debug] ACP agent finished with stop reason: ${result.stopReason}`,
       );
     } catch (error) {
@@ -405,6 +405,8 @@ ${lines.join("\n")}`
     response: vscode.ChatResponseStream,
   ): void {
     const update = notification.update;
+    this.logger.trace(`Handling chat request for agent ${this.agentId} - update : ${JSON.stringify(update)}`);
+
     switch (update.sessionUpdate) {
       case "agent_message_chunk": {
         const text = this.getContentText(update.content);
@@ -416,7 +418,7 @@ ${lines.join("\n")}`
           response.markdown(
             "> ℹ️ **Info:** Received a non-text message from the agent that cannot be rendered.",
           );
-          this.outputChannel.appendLine(
+          this.logger.info(
             `[debug] Received non-text message chunk (non-renderable) from agent.`,
           );
         }
