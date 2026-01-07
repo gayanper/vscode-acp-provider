@@ -139,80 +139,82 @@ function addAskForPermissionAndGetWeather(config: PreprogrammedConfig) {
 }
 
 function addToolCallFailure(config: PreprogrammedConfig) {
-    config.promptPrograms?.push({
-        promptText: "run python",
-        notifications: {
-            prompt: [{
-                sessionId: "test-session-id",
-                update: {
-                    sessionUpdate: "tool_call",
-                    toolCallId: "python_tool_call_1",
-                    title: "Run Python Script",
-                    rawInput: {
-                        command: [
-                            "python3",
-                            "-c",
-                            "print('Hello World')",
-                        ],
-                    },
-                    status: "in_progress",
-                },
+  config.promptPrograms?.push({
+    promptText: "run python",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "python_tool_call_1",
+            title: "Run Python Script",
+            rawInput: {
+              command: ["python3", "-c", "print('Hello World')"],
             },
-            {
-                sessionId: "test-session-id",
-                update: {
-                    sessionUpdate: "tool_call_update",
-                    toolCallId: "python_tool_call_1",
-                    rawOutput: {
-                        formatted_output: "Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nSyntaxError: invalid syntax",
-                    },
-                    status: "failed",
-                },  
-            }]
-        }
-    });
+            status: "in_progress",
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "python_tool_call_1",
+            rawOutput: {
+              command: ["python3", "-c", "print('Hello World')"],
+              formatted_output:
+                'Traceback (most recent call last):\n  File "<string>", line 1, in <module>\nSyntaxError: invalid syntax',
+            },
+            status: "failed",
+          },
+        },
+      ],
+    },
+  });
 }
 
 function addToolCallSuccess(config: PreprogrammedConfig) {
-    config.promptPrograms?.push({
-        promptText: "run ls",
-        notifications: {
-            prompt: [{
-                sessionId: "test-session-id",
-                update: {
-                    sessionUpdate: "tool_call",
-                    toolCallId: "ls_tool_call_1",
-                    title: "List Directory",
-                    rawInput: {
-                        command: [
-                            "ls",
-                            "-la",
-                        ],
-                    },
-                    status: "in_progress",
-                },
+  config.promptPrograms?.push({
+    promptText: "run ls",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "ls_tool_call_1",
+            title: "List Directory",
+            rawInput: {
+              command: ["ls", "-la"],
             },
-            {
-                sessionId: "test-session-id",
-                update: {
-                    sessionUpdate: "tool_call_update",
-                    toolCallId: "ls_tool_call_1",
-                    rawOutput: {
-                        aggregated_output: "total 8\ndrwxr-xr-x  3 user  staff   96 Sep 14 10:00 .\ndrwxr-xr-x  5 user  staff  160 Sep 14 09:59 ..\n-rw-r--r 1 user  staff   0 Sep 14 10:00 file.txt",
-                        formatted_output: "total 8\ndrwxr-xr-x  3 user  staff   96 Sep 14 10:00 .\ndrwxr-xr-x  5 user  staff  160 Sep 14 09:59 ..\n-rw-r--r 1 user  staff   0 Sep 14 10:00 file.txt",
-                    },
-                    content:[
-                        {
-                            type: "content",
-                            content: {
-                                type: "text",
-                                text: "total 8\ndrwxr-xr-x  3 user  staff   96 Sep 14 10:00 .\ndrwxr-xr-x  5 user  staff  160 Sep 14 09:59 ..\n-rw-r--r 1 user  staff   0 Sep 14 10:00 file.txt",
-                            }
-                        }
-                    ],
-                    status: "completed",
-                },  
-            }]
-        }
-    });
+            status: "in_progress",
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "ls_tool_call_1",
+            rawOutput: {
+              command: ["ls", "-la"],
+              aggregated_output:
+                "total 8\ndrwxr-xr-x  3 user  staff   96 Sep 14 10:00 .\ndrwxr-xr-x  5 user  staff  160 Sep 14 09:59 ..\n-rw-r--r 1 user  staff   0 Sep 14 10:00 file.txt",
+              formatted_output:
+                "total 8\ndrwxr-xr-x  3 user  staff   96 Sep 14 10:00 .\ndrwxr-xr-x  5 user  staff  160 Sep 14 09:59 ..\n-rw-r--r 1 user  staff   0 Sep 14 10:00 file.txt",
+            },
+            content: [
+              {
+                type: "content",
+                content: {
+                  type: "text",
+                  text: "total 8\ndrwxr-xr-x  3 user  staff   96 Sep 14 10:00 .\ndrwxr-xr-x  5 user  staff  160 Sep 14 09:59 ..\n-rw-r--r 1 user  staff   0 Sep 14 10:00 file.txt",
+                },
+              },
+            ],
+            status: "completed",
+          },
+        },
+      ],
+    },
+  });
 }

@@ -14,6 +14,12 @@ import {
   Progress,
 } from "vscode";
 
+type ToolInfo = {
+  name: string;
+  input?: string;
+  output?: string;
+};
+
 export class AcpChatParticipant extends DisposableBase {
   requestHandler: vscode.ChatRequestHandler = this.handleRequest.bind(this);
   onDidReceiveFeedback: vscode.Event<vscode.ChatResultFeedback> =
@@ -34,7 +40,9 @@ export class AcpChatParticipant extends DisposableBase {
       reporter: vscode.Progress<
         ChatResponseReferencePart | ChatResponseWarningPart
       >;
-      complete: (value: string | PromiseLike<string>) => void;
+      complete: (
+        value: string | PromiseLike<string | undefined> | undefined,
+      ) => void;
     }
   >();
 
@@ -470,7 +478,7 @@ ${lines.join("\n")}`
               break;
           }
           response.progress(`${icon} ${toolCallText}`, (progress) => {
-            return new Promise<string>((resolve) => {
+            return new Promise<string | undefined>((resolve) => {
               this.toolCallProgressMap.set(update.toolCallId, {
                 reporter: progress,
                 complete: resolve,
@@ -486,17 +494,12 @@ ${lines.join("\n")}`
             update.toolCallId,
           );
           if (toolCallProgress) {
-            update.content?.forEach((c) => {
-              if (c.type === "content") {
-                const contentText = this.getContentText(c.content);
-                if (contentText) {
-                  toolCallProgress.reporter.report({
-                    value: new vscode.MarkdownString(contentText),
-                  });
-                }
-              }
-            });
-            toolCallProgress.complete(this.getBestTitleValue(update));
+            const toolInfo = this.getToolInfo(update);
+            toolCallProgress.complete(
+              ` ${update.status === "completed" ? "✅" : "❌"} ${toolInfo.input} -> ${
+                toolInfo.output?.substring(0, 100) || "No output"
+              }... `,
+            );
             this.toolCallProgressMap.delete(update.toolCallId);
           }
         }
@@ -578,31 +581,83 @@ ${lines.join("\n")}`
     return undefined;
   }
 
-  private getBestTitleValue(toolCallUpdate: ToolCallUpdate): string {
-    if (toolCallUpdate.title) {
-      return toolCallUpdate.title;
-    }
+  private getToolInfo(toolCallUpdate: ToolCallUpdate): ToolInfo {
+    const response: ToolInfo = {
+      name: toolCallUpdate.title || "",
+    };
 
-    if (toolCallUpdate.rawInput) {
-      return JSON.stringify(toolCallUpdate.rawInput);
-    }
-
-    if (toolCallUpdate.content && toolCallUpdate.content.length > 0) {
-      const content = toolCallUpdate.content.findLast(
-        (c) => c.type === "content",
-      )?.content;
-      if (content) {
-        const text = this.getContentText(content);
-        if (text) {
-          return text;
+    if (
+      toolCallUpdate.status === "in_progress" ||
+      toolCallUpdate.status === "pending"
+    ) {
+      if (
+        toolCallUpdate.rawInput &&
+        typeof toolCallUpdate.rawInput === "object" &&
+        "command" in toolCallUpdate.rawInput &&
+        Array.isArray(toolCallUpdate.rawInput.command)
+      ) {
+        response.input = toolCallUpdate.rawInput.command.join(" ");
+      } else {
+        toolCallUpdate.content
+          ?.filter((c) => c.type === "content")
+          .map((c) => c.content)
+          .filter((c) => c.type === "text")
+          .reduce((acc, curr) => {
+            response.input = acc + curr.text;
+            return response.input;
+          }, "");
+      }
+      if (response.name === "" && response.input) {
+        const firstLine = response.input.split("\n")[0];
+        response.name =
+          firstLine.length > 30
+            ? firstLine.substring(0, 30) + "..."
+            : firstLine;
+      }
+    } else {
+      if (
+        toolCallUpdate.rawOutput &&
+        typeof toolCallUpdate.rawOutput === "object"
+      ) {
+        if (
+          "command" in toolCallUpdate.rawOutput &&
+          Array.isArray(toolCallUpdate.rawOutput.command)
+        ) {
+          response.input = toolCallUpdate.rawOutput.command.join(" ");
+          if (response.name === "") {
+            const firstLine = response.input.split("\n")[0];
+            response.name =
+              firstLine.length > 30
+                ? firstLine.substring(0, 30) + "..."
+                : firstLine;
+          }
         }
+
+        if (
+          "formatted_output" in toolCallUpdate.rawOutput &&
+          typeof toolCallUpdate.rawOutput.formatted_output === "string"
+        ) {
+          response.output = toolCallUpdate.rawOutput.formatted_output;
+        } else if (
+          "aggregated_output" in toolCallUpdate.rawOutput &&
+          typeof toolCallUpdate.rawOutput.aggregated_output === "string"
+        ) {
+          response.output = toolCallUpdate.rawOutput.aggregated_output;
+        } else {
+          response.output = `\`\`\`json\n${JSON.stringify(toolCallUpdate.rawOutput, null, 2)}\n\`\`\``;
+        }
+      } else {
+        toolCallUpdate.content
+          ?.filter((c) => c.type === "content")
+          .map((c) => c.content)
+          .filter((c) => c.type === "text")
+          .reduce((acc, curr) => {
+            response.output = acc + curr.text;
+            return response.output;
+          }, "");
       }
     }
 
-    if (toolCallUpdate.status === "completed" && toolCallUpdate.rawOutput) {
-      return JSON.stringify(toolCallUpdate.rawOutput);
-    }
-
-    return "";
+    return response;
   }
 }
