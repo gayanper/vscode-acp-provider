@@ -74,13 +74,13 @@ To build the extension locally you can follow these steps:
    - Browse to the location of the built `.vsix` file (usually in the `vscode-acp-provider` directory) and select it to install
 
 6. Configure Runtime Arguments to enable proposed API for this extension
-    - Open the command palette (Ctrl+Shift+P or Cmd+Shift+P on Mac)
-    - Type `Preferences: Configure Runtime Arguments` and select it
-    - Add the following line to the `argv.json` file that opens:
-      ```json
-      "enable-proposed-api": ["org-gap.vscode-acp-client"]
-      ```
-    - Save the file and restart VSCode Insider
+   - Open the command palette (Ctrl+Shift+P or Cmd+Shift+P on Mac)
+   - Type `Preferences: Configure Runtime Arguments` and select it
+   - Add the following line to the `argv.json` file that opens:
+     ```json
+     "enable-proposed-api": ["org-gap.vscode-acp-client"]
+     ```
+   - Save the file and restart VSCode Insider
 
 ## Usage
 
