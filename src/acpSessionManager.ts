@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import vscode, { ChatSessionItem, ChatSessionStatus } from "vscode";
-import { AcpClient, AcpPermissionHandler } from "./acpClient";
+import { AcpClient, AcpPermissionHandler, createAcpClient } from "./acpClient";
 import { DiskSession, SessionDb } from "./acpSessionDb";
 import { AgentRegistryEntry } from "./agentRegistry";
 import { createSessionUri, decodeVscodeResource } from "./chatIdentifiers";
@@ -84,8 +84,15 @@ export function createAcpSessionManager(
   agent: AgentRegistryEntry,
   permissionHandler: AcpPermissionHandler,
   logger: vscode.LogOutputChannel,
+  clientProvider?: () => AcpClient,
 ): AcpSessionManager {
-  return new SessionManager(sessionDb, agent, permissionHandler, logger);
+  return new SessionManager(
+    sessionDb,
+    agent,
+    permissionHandler,
+    logger,
+    clientProvider,
+  );
 }
 
 const DEFAULT_SESSION_ID = "default";
@@ -97,11 +104,11 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     private readonly agent: AgentRegistryEntry,
     readonly permissionHandler: AcpPermissionHandler,
     private readonly logger: vscode.LogOutputChannel,
+    clientProvider: () => AcpClient = () =>
+      createAcpClient(agent, permissionHandler, logger),
   ) {
     super();
-    this.client = this._register(
-      new AcpClient(agent, permissionHandler, logger),
-    );
+    this.client = this._register(clientProvider());
 
     this._register(
       this.sessionDb.onDataChanged(async () => {

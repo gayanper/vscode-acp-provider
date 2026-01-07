@@ -184,7 +184,10 @@ export class PermissionPromptManager
     }
 
     const toolCall = pending.request.toolCall;
-    const message = new vscode.MarkdownString(toolCall.title ?? `\`\`\`json\n ${JSON.stringify(toolCall.rawInput)}\n\`\`\``);
+    const message = new vscode.MarkdownString(
+      toolCall.title ??
+        `\`\`\`json\n ${JSON.stringify(toolCall.rawInput)}\n\`\`\``,
+    );
     context.response.markdown("## Permission Required");
     context.response.markdown(message);
     const commandId = createPermissionResolveCommandId(context.agentId);

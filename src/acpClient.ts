@@ -48,7 +48,36 @@ const CLIENT_INFO = {
   version: "1.0.0",
 };
 
-export class AcpClient extends DisposableBase implements Client {
+export interface AcpClient extends Client, vscode.Disposable {
+  onSessionUpdate: vscode.Event<SessionNotification>;
+  onDidStop: vscode.Event<void>;
+  getCapabilities(): AgentCapabilities;
+  createSession(cwd: string): Promise<NewSessionResponse>;
+  getSupportedModelState(): SessionModelState | null;
+  getSupportedModeState(): SessionModeState | null;
+  loadSession(
+    sessionId: string,
+    cwd: string,
+  ): Promise<{
+    modeId: string | undefined;
+    modelId: string | undefined;
+    notifications: SessionNotification[];
+  }>;
+  prompt(sessionId: string, prompt: ContentBlock[]): Promise<PromptResponse>;
+  cancel(sessionId: string): Promise<void>;
+  changeMode(sessionId: string, modeId: string): Promise<void>;
+  changeModel(sessionId: string, modelId: string): Promise<void>;
+}
+
+export function createAcpClient(
+  agent: AgentRegistryEntry,
+  permissionHandler: AcpPermissionHandler,
+  logChannel: vscode.LogOutputChannel,
+): AcpClient {
+  return new AcpClientImpl(agent, permissionHandler, logChannel);
+}
+
+class AcpClientImpl extends DisposableBase implements AcpClient {
   private child?: ChildProcessWithoutNullStreams;
   private connection?: ClientSideConnection;
   private readyPromise?: Promise<void>;
@@ -282,11 +311,5 @@ export class AcpClient extends DisposableBase implements Client {
     this.child = undefined;
     this.connection = undefined;
     this.readyPromise = undefined;
-  }
-
-  // this method is not purely a ACP protocol implementation due to it is not part of the spec yet.
-  // so the implementation is done for few agents with their cli apis that list sessions.
-  async listSessions(cwd: string): Promise<SessionInfo[]> {
-    return this.sessionReader.listSessions(cwd);
   }
 }

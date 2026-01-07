@@ -12,6 +12,8 @@ import {
 } from "./permissionPrompts";
 import { createAcpChatSessionItemProvider } from "./acpChatSessionItemProvider";
 import { createSessionDb, SessionDb } from "./acpSessionDb";
+import { createTestAcpClientWithScenarios } from "./testScenarios";
+import { AcpClient } from "./acpClient";
 
 export async function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("ACP Client", {
@@ -50,12 +52,20 @@ function registerAgents(params: {
         },
       ),
     );
+    type P = () => AcpClient;
+    let clientProvider: P | undefined = undefined;
+    if (process.env.MOCK_CLIENT === "true") {
+      clientProvider = () => {
+        return createTestAcpClientWithScenarios(permisionPromptsManager);
+      };
+    }
 
     const sessionManager = createAcpSessionManager(
       params.sessionDb,
       agent,
       permisionPromptsManager,
       outputChannel,
+      clientProvider,
     );
     context.subscriptions.push(sessionManager);
 
