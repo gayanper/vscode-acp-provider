@@ -170,7 +170,10 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
           `Creating new untitled session for resource ${vscodeResource.toString()}`,
         );
 
-        const acpSession = await this.client.createSession(getWorkspaceCwd());
+        const acpSession = await this.client.createSession(
+          getWorkspaceCwd(),
+          this.agent.mcpServers,
+        );
         const session = new Session(
           this.agent,
           vscodeResource,
@@ -206,6 +209,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
         const response = await this.client.loadSession(
           existingSession.sessionId,
           existingSession.cwd,
+          this.agent.mcpServers,
         );
 
         const session = new Session(

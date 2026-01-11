@@ -14,19 +14,20 @@ import {
   PROTOCOL_VERSION,
   RequestPermissionRequest,
   RequestPermissionResponse,
-  SessionInfo,
   SessionModelState,
   SessionModeState,
+  McpServer,
+  McpServerStdio,
   SessionNotification,
   SetSessionModelRequest,
   SetSessionModeRequest,
-  ToolCall,
 } from "@agentclientprotocol/sdk";
 import { ChildProcessWithoutNullStreams, spawn } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 import * as vscode from "vscode";
 import { AcpSessionReader, createSessionReader } from "./acpSessionReader";
 import { AgentRegistryEntry } from "./agentRegistry";
+import type { AcpMcpServerConfiguration } from "./types";
 import { DisposableBase } from "./disposables";
 
 export interface AcpPermissionHandler {
@@ -54,12 +55,16 @@ export interface AcpClient extends Client, vscode.Disposable {
   onDidStart: vscode.Event<void>;
 
   getCapabilities(): AgentCapabilities;
-  createSession(cwd: string): Promise<NewSessionResponse>;
+  createSession(
+    cwd: string,
+    mcpServers: AgentRegistryEntry["mcpServers"],
+  ): Promise<NewSessionResponse>;
   getSupportedModelState(): SessionModelState | null;
   getSupportedModeState(): SessionModeState | null;
   loadSession(
     sessionId: string,
     cwd: string,
+    mcpServers: AgentRegistryEntry["mcpServers"],
   ): Promise<{
     modeId: string | undefined;
     modelId: string | undefined;
@@ -129,14 +134,17 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
     return this.agentCapabilities || {};
   }
 
-  async createSession(cwd: string): Promise<NewSessionResponse> {
+  async createSession(
+    cwd: string,
+    mcpServers: AgentRegistryEntry["mcpServers"],
+  ): Promise<NewSessionResponse> {
     await this.ensureReady();
     if (!this.connection) {
       throw new Error("ACP connection is not ready");
     }
     const request: NewSessionRequest = {
       cwd,
-      mcpServers: [],
+      mcpServers: serializeMcpServers(mcpServers),
     };
     const response: NewSessionResponse =
       await this.connection.newSession(request);
@@ -159,6 +167,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
   async loadSession(
     sessionId: string,
     cwd: string,
+    mcpServers: AgentRegistryEntry["mcpServers"],
   ): Promise<{
     modeId: string | undefined;
     modelId: string | undefined;
@@ -182,7 +191,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
       const response: LoadSessionResponse = await this.connection.loadSession({
         sessionId,
         cwd,
-        mcpServers: [],
+        mcpServers: serializeMcpServers(mcpServers),
       });
 
       return {
@@ -321,4 +330,39 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
     this.connection = undefined;
     this.readyPromise = undefined;
   }
+}
+
+function serializeMcpServers(
+  mcpServers: readonly AcpMcpServerConfiguration[] | undefined,
+): McpServer[] {
+  if (!mcpServers?.length) {
+    return [];
+  }
+  return mcpServers
+    .map(serializeStdioServer)
+    .filter((value): value is McpServerStdio => value !== null);
+}
+
+function serializeStdioServer(
+  config: AcpMcpServerConfiguration,
+): McpServerStdio | null {
+  if (config.type !== "stdio") {
+    return null;
+  }
+
+  return {
+    name: config.name,
+    command: config.command,
+    args: Array.from(config.args ?? []),
+    env: serializeEnv(config.env),
+  } satisfies McpServerStdio;
+}
+
+function serializeEnv(
+  env: Record<string, string> | undefined,
+): McpServerStdio["env"] {
+  if (!env) {
+    return [];
+  }
+  return Object.entries(env).map(([name, value]) => ({ name, value }));
 }
