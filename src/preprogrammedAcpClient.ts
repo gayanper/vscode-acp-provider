@@ -140,19 +140,6 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
     } satisfies NewSessionResponse;
   }
 
-  async listSessions(_cwd: string): Promise<SessionInfo[]> {
-    return [
-      {
-        sessionId: this.config.sessionToResume.sessionId,
-        title:
-          this.config.sessionToResume.label ??
-          this.config.sessionToResume.sessionId,
-        cwd: this.config.sessionToResume.cwd ?? "",
-        updatedAt: new Date().toISOString(),
-      },
-    ];
-  }
-
   async loadSession(
     sessionId: string,
     _cwd: string,
