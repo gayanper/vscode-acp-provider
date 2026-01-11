@@ -22,7 +22,7 @@ Native chat session provider for VS Code that connects external agent CLIs throu
 
 ## Configuration
 
-Add ACP agents under the `acpClient.agents` setting (User or Workspace) to surface them in the chat session picker:
+Add ACP agents under the `acpClient.agents` setting (User or Workspace) to surface them in the chat session picker. You can also provide optional MCP tool connections via `mcpServers` so the agent automatically connects to additional tools when sessions start. **MCP support is currently limited to `stdio` transports**, so each entry must include the command to launch the tool and any arguments or environment variables it needs:
 
 ```json
 "acpClient.agents": {
@@ -33,17 +33,29 @@ Add ACP agents under the `acpClient.agents` setting (User or Workspace) to surfa
       "acp",
       "/agents/coding.yaml"
     ],
+    "mcpServers": [
+      {
+        "type": "stdio",
+        "name": "workspace-tools",
+        "command": "/opt/bin/mcp-tool",
+        "args": ["serve"],
+        "env": {
+          "WORKSPACE": "${workspaceFolder}"
+        }
+      }
+    ],
     "enabled": false
   },
   "opencode": {
-    "label": "OpenCode Agent",
+    "title": "OpenCode Agent",
     "command": "/opt/bin/opencode",
     "args": [
       "acp"
     ],
+    "mcpServers": [],
     "enabled": true
-  },
-},
+  }
+}
 ```
 
 ## Installing

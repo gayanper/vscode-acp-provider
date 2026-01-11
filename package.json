@@ -134,6 +134,46 @@
                 },
                 "description": "Environment variables merged with the VS Code shell"
               },
+              "mcpServers": {
+                "type": "array",
+                "description": "Optional list of MCP servers this agent should connect to when sessions start",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "name",
+                    "command"
+                  ],
+                  "properties": {
+                    "type": {
+                      "const": "stdio",
+                      "description": "Connect to an MCP server over stdio"
+                    },
+                    "name": {
+                      "type": "string",
+                      "description": "Display name for the MCP server"
+                    },
+                    "command": {
+                      "type": "string",
+                      "description": "Executable that launches the MCP server"
+                    },
+                    "args": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Arguments passed to the MCP server executable"
+                    },
+                    "env": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "description": "Environment variables applied when starting the MCP server"
+                    }
+                  }
+                }
+              },
               "enabled": {
                 "type": "boolean",
                 "default": true,
@@ -150,6 +190,16 @@
                 "args": [
                   "acp",
                   "/path/to/your/agents/cagent.yaml"
+                ],
+                "mcpServers": [
+                  {
+                    "type": "stdio",
+                    "name": "my-stdio-tooling",
+                    "command": "/opt/homebrew/bin/my-mcp",
+                    "args": [
+                      "serve"
+                    ]
+                  }
                 ],
                 "enabled": false
               }

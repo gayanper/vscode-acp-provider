@@ -6,6 +6,16 @@ export enum AgentType {
   GeminiCLI = "geminicli",
 }
 
+export interface AcpStdioMcpServerConfiguration {
+  readonly type: "stdio";
+  readonly name: string;
+  readonly command: string;
+  readonly args?: readonly string[];
+  readonly env?: Record<string, string>;
+}
+
+export type AcpMcpServerConfiguration = AcpStdioMcpServerConfiguration;
+
 export interface AcpAgentConfigurationEntry {
   readonly label?: string;
   readonly description?: string;
@@ -15,6 +25,7 @@ export interface AcpAgentConfigurationEntry {
   readonly cwd?: string;
   readonly env?: Record<string, string>;
   readonly enabled?: boolean;
+  readonly mcpServers?: readonly AcpMcpServerConfiguration[];
 }
 
 export const VscodeToolNames = {

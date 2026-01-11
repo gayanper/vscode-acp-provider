@@ -128,7 +128,10 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
     return this.agentCapabilities || {};
   }
 
-  async createSession(cwd: string): Promise<NewSessionResponse> {
+  async createSession(
+    cwd: string,
+    _mcpServers: AgentRegistryEntry["mcpServers"],
+  ): Promise<NewSessionResponse> {
     await this.ensureReady();
 
     if (!this.sessionCreated) {
@@ -150,6 +153,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
   async loadSession(
     sessionId: string,
     _cwd: string,
+    _mcpServers: AgentRegistryEntry["mcpServers"],
   ): Promise<{
     modeId: string | undefined;
     modelId: string | undefined;
