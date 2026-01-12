@@ -80,6 +80,12 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
   );
   public readonly onDidStart: vscode.Event<void> = this._onDidStart.event;
 
+  private readonly _onDidOptionsChanged = this._register(
+    new vscode.EventEmitter<void>(),
+  );
+  public readonly onDidOptionsChanged: vscode.Event<void> =
+    this._onDidOptionsChanged.event;
+
   private readonly promptPrograms = new Map<
     string,
     PreprogrammedPromptProgram
@@ -114,6 +120,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
   }
 
   async ensureReady(): Promise<void> {
+    this._onDidStart.fire();
     return Promise.resolve();
   }
 
@@ -131,7 +138,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
       }
     }
 
-    this._onDidStart.fire();
+    this._onDidOptionsChanged.fire();
 
     return {
       sessionId: this.sessionId,
@@ -152,6 +159,8 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
     if (sessionId !== this.config.sessionToResume.sessionId) {
       throw new Error(`Unknown session ${sessionId}`);
     }
+
+    this._onDidOptionsChanged.fire();
     return {
       modeId: this.config.sessionToResume.modes?.currentModeId,
       modelId: this.config.sessionToResume.models?.currentModelId,

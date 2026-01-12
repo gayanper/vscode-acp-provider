@@ -52,6 +52,7 @@ export interface AcpClient extends Client, vscode.Disposable {
   onSessionUpdate: vscode.Event<SessionNotification>;
   onDidStop: vscode.Event<void>;
   onDidStart: vscode.Event<void>;
+  onDidOptionsChanged: vscode.Event<void>;
 
   getCapabilities(): AgentCapabilities;
   createSession(cwd: string): Promise<NewSessionResponse>;
@@ -103,6 +104,12 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
   );
   public readonly onDidStart: vscode.Event<void> = this.onDidStartEmitter.event;
 
+  private readonly _onDidOptionsChanged = this._register(
+    new vscode.EventEmitter<void>(),
+  );
+  public readonly onDidOptionsChanged: vscode.Event<void> =
+    this._onDidOptionsChanged.event;
+
   constructor(
     private readonly agent: AgentRegistryEntry,
     private readonly permissionHandler: AcpPermissionHandler,
@@ -119,6 +126,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
     this.readyPromise = this.createConnection();
     try {
       await this.readyPromise;
+      this.onDidStartEmitter.fire();
     } catch (error) {
       this.readyPromise = undefined;
       throw error;
@@ -143,7 +151,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
     this.supportedModeState = response.modes || null;
     this.supportedModelState = response.models || null;
 
-    this.onDidStartEmitter.fire();
+    this._onDidOptionsChanged.fire();
 
     return response;
   }
@@ -184,6 +192,10 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
         cwd,
         mcpServers: [],
       });
+
+      this.supportedModelState = response.models || null;
+      this.supportedModeState = response.modes || null;
+      this._onDidOptionsChanged.fire();
 
       return {
         modelId: response.models?.currentModelId,

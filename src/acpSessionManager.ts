@@ -116,7 +116,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     this.client = this._register(clientProvider());
 
     this._register(
-      this.client.onDidStart(() => {
+      this.client.onDidOptionsChanged(() => {
         this._onDidChangeOptions.fire();
       }),
     );
