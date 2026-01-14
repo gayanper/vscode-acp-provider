@@ -83,6 +83,37 @@ export function createTestAcpClientWithScenarios(
   addToolCallDiffPreview(config);
   addResumeSessionScenario(config);
 
+  // create a new prompt which lists these scenarios when typed "list"
+  config.promptPrograms?.push({
+    promptText: "list",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "Available scenarios:\n",
+            },
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: config.promptPrograms
+                .map((program) => `- ${program.promptText}`)
+                .join("\n"),
+            },
+          },
+        },
+      ],
+    },
+  });
+
   return createPreprogrammedAcpClient(config);
 }
 
@@ -352,7 +383,7 @@ function addResumeSessionScenario(config: PreprogrammedConfig) {
           resource: {
             uri: "file:///workspace/release-plan.md",
             text: "release-plan.md",
-          }
+          },
         },
       },
     },
@@ -424,8 +455,7 @@ function addResumeSessionScenario(config: PreprogrammedConfig) {
             type: "content",
             content: {
               type: "text",
-              text:
-                "Telemetry data collected: CPU usage, Memory usage, Disk I/O",
+              text: "Telemetry data collected: CPU usage, Memory usage, Disk I/O",
             },
           },
         ],

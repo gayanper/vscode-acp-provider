@@ -9,11 +9,6 @@ import * as vscode from "vscode";
 import { AcpSessionManager, Session } from "./acpSessionManager";
 import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
-import {
-  ChatResponseReferencePart,
-  ChatResponseWarningPart,
-  Progress,
-} from "vscode";
 import { buildDiffMarkdown, getToolInfo, ToolInfo } from "./chatRenderingUtils";
 
 export class AcpChatParticipant extends DisposableBase {
@@ -30,15 +25,10 @@ export class AcpChatParticipant extends DisposableBase {
     super();
   }
 
-  private readonly toolCallProgressMap = new Map<
+  private readonly toolInvocations = new Map<
     string,
     {
-      reporter: vscode.Progress<
-        ChatResponseReferencePart | ChatResponseWarningPart
-      >;
-      complete: (
-        value: string | PromiseLike<string | undefined> | undefined,
-      ) => void;
+      part: vscode.ChatToolInvocationPart;
       title: string;
     }
   >();
@@ -322,34 +312,46 @@ export class AcpChatParticipant extends DisposableBase {
       }
       case "tool_call": {
         const info = getToolInfo(update);
-        response.progress(info.name, (progress) => {
-          return new Promise<string | undefined>((resolve) => {
-            this.toolCallProgressMap.set(update.toolCallId, {
-              reporter: progress,
-              complete: resolve,
-              title: info.name,
-            });
-          });
+        response.prepareToolInvocation(info.name);
+
+        const invocation = new vscode.ChatToolInvocationPart(
+          info.name,
+          update.toolCallId,
+          false,
+        );
+        invocation.invocationMessage = info.input ?? "";
+
+        this.toolInvocations.set(update.toolCallId, {
+          part: invocation,
+          title: info.name,
         });
+
+        response.push(invocation);
         break;
       }
       case "tool_call_update": {
+        const tracked = this.toolInvocations.get(update.toolCallId);
+        if (!tracked) {
+          break;
+        }
+
+        const info = getToolInfo(update);
+        const part = tracked.part;
+
         if (update.status === "completed" || update.status === "failed") {
-          const toolCallProgress = this.toolCallProgressMap.get(
-            update.toolCallId,
+          part.isConfirmed = update.status === "completed";
+          part.isError = update.status === "failed" || undefined;
+          part.isComplete = true;
+          part.invocationMessage = info.output ?? "";
+          response.push(part);
+
+          this.handleToolContents(update, response);
+
+          this.logger.info(
+            `[tool_call] ${tracked.title} \n Input: ${info.input ?? "N/A"} \n Output: ${info.output ?? "N/A"}\n Status: ${update.status} \n\n`,
           );
-          if (toolCallProgress) {
-            const info = getToolInfo(update);
-            toolCallProgress.complete(toolCallProgress.title);
-            this.handleToolContents(update, response);
 
-            // log input and ouput information into log
-            this.logger.info(
-              `[tool_call] ${toolCallProgress.title} \n Input: ${info.input ?? "N/A"} \n Output: ${info.output ?? "N/A"}\n Status: ${update.status} \n\n`,
-            );
-
-            this.toolCallProgressMap.delete(update.toolCallId);
-          }
+          this.toolInvocations.delete(update.toolCallId);
         }
         break;
       }

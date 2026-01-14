@@ -14,13 +14,18 @@ import { buildDiffMarkdown, getToolInfo } from "./chatRenderingUtils";
 export class TurnBuilder {
   private currentUserMessage = "";
   private currentUserReferences: vscode.ChatPromptReference[] = [];
-  private currentAgentParts: (vscode.ChatResponsePart | vscode.ChatToolInvocationPart)[] = [];
+  private currentAgentParts: (
+    | vscode.ChatResponsePart
+    | vscode.ChatToolInvocationPart
+  )[] = [];
   private currentAgentMetadata: Record<string, unknown> = {};
   private agentMessageChunks: string[] = [];
   private turns: Array<vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2> = [];
   private readonly participantId: string;
-  private readonly toolTitles = new Map<string, string>();
-
+  private readonly toolCallParts = new Map<
+    string,
+    vscode.ChatToolInvocationPart
+  >();
 
   constructor(participantId: string) {
     this.participantId = participantId;
@@ -122,16 +127,30 @@ export class TurnBuilder {
 
   private appendToolCall(update: ToolCall): void {
     const info = getToolInfo(update);
-    this.toolTitles.set(update.toolCallId, info.name);
+    const invocation = new vscode.ChatToolInvocationPart(
+      info.name,
+      update.toolCallId,
+      false,
+    );
+    invocation.invocationMessage = info.input ?? "";
+    this.toolCallParts.set(update.toolCallId, invocation);
+    this.currentAgentParts.push(invocation);
   }
 
   private appendToolUpdate(update: ToolCallUpdate): void {
     if (update.status !== "completed" && update.status !== "failed") {
       return;
     }
+    const part = this.toolCallParts.get(update.toolCallId);
+    if (!part) {
+      return;
+    }
 
-    const toolName = this.toolTitles.get(update.toolCallId) ?? "unknown tool call";
-    this.currentAgentParts.push(new vscode.ChatToolInvocationPart(toolName, update.toolCallId, update.status === "failed")); 
+    const info = getToolInfo(update);
+    part.isConfirmed = update.status === "completed";
+    part.isError = update.status === "failed" || undefined;
+    part.isComplete = true;
+    part.invocationMessage = info.output ?? "";
 
     if (!update.content?.length) {
       return;

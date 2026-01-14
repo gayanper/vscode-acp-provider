@@ -70,6 +70,11 @@ export function getToolInfo(
         typeof toolCallUpdate.rawOutput.aggregated_output === "string"
       ) {
         response.output = toolCallUpdate.rawOutput.aggregated_output;
+      } else if (
+        "output" in toolCallUpdate.rawOutput &&
+        typeof toolCallUpdate.rawOutput.output === "string"
+      ) {
+        response.output = toolCallUpdate.rawOutput.output;
       } else {
         response.output = `${JSON.stringify(toolCallUpdate.rawOutput, null, 2)}`;
       }
