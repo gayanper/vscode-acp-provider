@@ -69,14 +69,17 @@ export class AcpChatParticipant extends DisposableBase {
       return;
     }
     session.markAsInProgress();
-    response.progress("Connecting to ACP agent...");
-
     this.cancelPendingRequest(session);
 
     const cancellation = new vscode.CancellationTokenSource();
     session.pendingRequest = { cancellation };
 
+    let timeout = setTimeout(() => {
+      response.progress("Working...");
+    }, 100);
+
     const subscription = session.client.onSessionUpdate((notification) => {
+      clearTimeout(timeout);
       if (
         !session.acpSessionId ||
         notification.sessionId !== session.acpSessionId
@@ -87,6 +90,10 @@ export class AcpChatParticipant extends DisposableBase {
         return;
       }
       this.renderSessionUpdate(notification, response);
+
+      timeout = setTimeout(() => {
+        response.progress("Working...");
+      }, 5000);
     });
 
     const cancellationRegistration = token.onCancellationRequested(() => {
