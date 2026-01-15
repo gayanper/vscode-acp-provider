@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import vscode from "vscode";
+import vscode, { ChatSessionStatus } from "vscode";
 import { AcpSessionManager } from "./acpSessionManager";
 import { DisposableBase } from "./disposables";
 import { SessionDb } from "./acpSessionDb";
@@ -38,6 +38,10 @@ class AcpChatSessionItemProvider
           original: originalItem,
           modified: modifiedItem,
         });
+
+        if (modified.status === ChatSessionStatus.InProgress) {
+          return;
+        }
 
         this.sessionDb
           .upsertSession(original.agent.id, {
