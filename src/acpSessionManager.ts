@@ -308,7 +308,10 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     reload: boolean = false,
   ): Promise<void> {
     if (!this.diskSessions || reload) {
-      const data = await this.sessionDb.listSessions(this.agent.id);
+      const data = await this.sessionDb.listSessions(
+        this.agent.id,
+        getWorkspaceCwd(),
+      );
       this.diskSessions = new Map<string, DiskSession>(
         data.map((s) => [s.sessionId, s]),
       );

@@ -207,7 +207,13 @@
           ]
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "acp.clearSessions",
+        "title": "ACP: Delete all sessions"
+      }
+    ]
   },
   "scripts": {
     "clean": "rm -rf ./out",

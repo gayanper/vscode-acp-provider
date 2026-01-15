@@ -14,9 +14,10 @@ export type DiskSession = {
 
 export interface SessionDb extends vscode.Disposable {
   onDataChanged: vscode.Event<void>;
-  listSessions(agent: AgentType): Promise<DiskSession[]>;
+  listSessions(agent: AgentType, cwd: string): Promise<DiskSession[]>;
   upsertSession(agent: AgentType, info: DiskSession): Promise<void>;
   deleteSession(agent: AgentType, sessionId: string): Promise<void>;
+  deleteAllSessions(cwd: string): Promise<void>;
 }
 
 function getAcpDbFile(context: vscode.ExtensionContext): string {
@@ -67,10 +68,10 @@ class SqlLiteSessionDb implements SessionDb {
     this.db.exec(SCHEMA);
   }
 
-  async listSessions(agent: AgentType): Promise<DiskSession[]> {
+  async listSessions(agent: AgentType, cwd: string): Promise<DiskSession[]> {
     const rows = this.db!.prepare(
-      "SELECT session_id AS sessionId, cwd, title, updated_at AS updatedAt FROM sessions WHERE agent_type=? ORDER BY updated_at DESC",
-    ).all(agent);
+      "SELECT session_id AS sessionId, cwd, title, updated_at AS updatedAt FROM sessions WHERE agent_type=? AND cwd=? ORDER BY updated_at DESC",
+    ).all(agent, cwd);
     return rows.map((row: any) => ({
       sessionId: row.sessionId,
       cwd: row.cwd,
@@ -119,6 +120,13 @@ class SqlLiteSessionDb implements SessionDb {
     const resp = this.db!.prepare(
       "DELETE FROM sessions WHERE agent_type=? AND session_id=?",
     ).run(agent, sessionId);
+    if (resp.changes > 0) {
+      this._onDataChanged.fire();
+    }
+  }
+
+  async deleteAllSessions(cwd: string): Promise<void> {
+    const resp = this.db!.prepare("DELETE FROM sessions WHERE cwd=?").run(cwd);
     if (resp.changes > 0) {
       this._onDataChanged.fire();
     }

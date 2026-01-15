@@ -14,6 +14,7 @@ import { createAcpChatSessionItemProvider } from "./acpChatSessionItemProvider";
 import { createSessionDb, SessionDb } from "./acpSessionDb";
 import { createTestAcpClientWithScenarios } from "./testScenarios";
 import { AcpClient } from "./acpClient";
+import { registerCommands } from "./commands";
 
 export async function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("ACP Client", {
@@ -31,6 +32,8 @@ export async function activate(context: vscode.ExtensionContext) {
     outputChannel,
     context,
   });
+
+  registerCommands(context, { sessionDb }, outputChannel);
 }
 
 function registerAgents(params: {
