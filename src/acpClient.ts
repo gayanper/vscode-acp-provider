@@ -85,29 +85,31 @@ export function createAcpClient(
   return new AcpClientImpl(agent, permissionHandler, logChannel);
 }
 
+type ClientMode = "new_session" | "load_session";
+
 class AcpClientImpl extends DisposableBase implements AcpClient {
-  private child?: ChildProcessWithoutNullStreams;
-  private connection?: ClientSideConnection;
-  private readyPromise?: Promise<void>;
+  private agentProcess: ChildProcessWithoutNullStreams | null = null;
+  private connection: ClientSideConnection | null = null;
+  private readyPromise: Promise<void> | null = null;
   private agentCapabilities?: InitializeResponse;
   private supportedModelState: SessionModelState | null = null;
   private supportedModeState: SessionModeState | null = null;
-  private readonly sessionReader: AcpSessionReader;
 
   private readonly onSessionUpdateEmitter = this._register(
     new vscode.EventEmitter<SessionNotification>(),
   );
   public readonly onSessionUpdate: vscode.Event<SessionNotification> =
     this.onSessionUpdateEmitter.event;
-  private readonly onDidStopEmitter = this._register(
-    new vscode.EventEmitter<void>(),
-  );
-  public readonly onDidStop: vscode.Event<void> = this.onDidStopEmitter.event;
 
-  private readonly onDidStartEmitter = this._register(
+  private readonly _onDidStop = this._register(
     new vscode.EventEmitter<void>(),
   );
-  public readonly onDidStart: vscode.Event<void> = this.onDidStartEmitter.event;
+  public readonly onDidStop: vscode.Event<void> = this._onDidStop.event;
+
+  private readonly _onDidStart = this._register(
+    new vscode.EventEmitter<void>(),
+  );
+  public readonly onDidStart: vscode.Event<void> = this._onDidStart.event;
 
   private readonly _onDidOptionsChanged = this._register(
     new vscode.EventEmitter<void>(),
@@ -115,25 +117,29 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
   public readonly onDidOptionsChanged: vscode.Event<void> =
     this._onDidOptionsChanged.event;
 
+  private mode: ClientMode = "new_session";
+
   constructor(
     private readonly agent: AgentRegistryEntry,
     private readonly permissionHandler: AcpPermissionHandler,
     private readonly logChannel: vscode.LogOutputChannel,
   ) {
     super();
-    this.sessionReader = createSessionReader(agent, logChannel);
   }
 
-  async ensureReady(): Promise<void> {
+  async ensureReady(expectedMode: ClientMode): Promise<void> {
     if (this.readyPromise) {
-      return this.readyPromise;
+      if (this.mode === expectedMode) {
+        return this.readyPromise;
+      }
     }
-    this.readyPromise = this.createConnection();
+
+    await this.stopProcess();
+    this.readyPromise = this.createConnection(expectedMode);
     try {
       await this.readyPromise;
-      this.onDidStartEmitter.fire();
     } catch (error) {
-      this.readyPromise = undefined;
+      this.readyPromise = null;
       throw error;
     }
   }
@@ -146,7 +152,8 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
     cwd: string,
     mcpServers: AgentRegistryEntry["mcpServers"],
   ): Promise<NewSessionResponse> {
-    await this.ensureReady();
+    await this.ensureReady("new_session");
+
     if (!this.connection) {
       throw new Error("ACP connection is not ready");
     }
@@ -181,7 +188,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
     modelId: string | undefined;
     notifications: SessionNotification[];
   }> {
-    await this.ensureReady();
+    await this.ensureReady("load_session");
     if (!this.connection) {
       throw new Error("ACP connection is not ready");
     }
@@ -220,7 +227,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
     sessionId: string,
     prompt: ContentBlock[],
   ): Promise<PromptResponse> {
-    await this.ensureReady();
+    await this.ensureReady(this.mode);
     if (!this.connection) {
       throw new Error("ACP connection is not ready");
     }
@@ -257,7 +264,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
   }
 
   async changeMode(sessionId: string, modeId: string): Promise<void> {
-    await this.ensureReady();
+    await this.ensureReady(this.mode);
     if (!this.connection) {
       throw new Error("ACP connection is not ready");
     }
@@ -269,7 +276,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
   }
 
   async changeModel(sessionId: string, modelId: string): Promise<void> {
-    await this.ensureReady();
+    await this.ensureReady(this.mode);
     if (!this.connection) {
       throw new Error("ACP connection is not ready");
     }
@@ -281,15 +288,17 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
     await this.connection.unstable_setSessionModel(request);
   }
 
-  dispose(): void {
-    this.stopProcess();
+  async dispose(): Promise<void> {
+    await this.stopProcess();
     super.dispose();
   }
 
-  private async createConnection(): Promise<void> {
-    this.stopProcess();
+  private async ensureAgentRunning(): Promise<void> {
+    if (this.agentProcess && !this.agentProcess.killed) {
+      return;
+    }
     const args = Array.from(this.agent.args ?? []);
-    const child = spawn(this.agent.command, args, {
+    const agentProc = spawn(this.agent.command, args, {
       cwd: this.agent.cwd ?? process.cwd(),
       env: {
         ...process.env,
@@ -297,28 +306,31 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
       },
       stdio: ["pipe", "pipe", "pipe"],
     });
-    this.child = child;
-    child.stderr?.on("data", (data) => {
-      this.logChannel.appendLine(
-        `[acp:${this.agent.id}] ${data.toString().trim()}`,
+    agentProc.stderr?.on("data", (data) => {
+      this.logChannel.debug(
+        `agent:${this.agent.id} ${data.toString().trim()}`,
       );
     });
-    child.on("exit", (code) => {
-      this.logChannel.appendLine(
-        `[acp:${this.agent.id}] exited with code ${code ?? "unknown"}`,
+    agentProc.on("exit", async (code) => {
+      this.logChannel.debug(
+        `agent:${this.agent.id} exited with code ${code ?? "unknown"}`,
       );
-      this.stopProcess();
-      this.onDidStopEmitter.fire();
+      this._onDidStop.fire();
     });
-    child.on("error", (error) => {
-      this.logChannel.appendLine(
-        `[acp:${this.agent.id}] failed to start: ${error instanceof Error ? error.message : String(error)}`,
+    agentProc.on("error", (error) => {
+      this.logChannel.debug(
+        `agent:${this.agent.id} failed to start: ${error instanceof Error ? error.message : String(error)}`,
       );
+      // todo: emit agent proc error upstream
     });
+    this.agentProcess = agentProc;
+  }
 
-    const stdinStream = child.stdin ? Writable.toWeb(child.stdin) : undefined;
-    const stdoutStream = child.stdout
-      ? Readable.toWeb(child.stdout)
+  private async createConnection(mode: ClientMode): Promise<void> {
+    await this.ensureAgentRunning();
+    const stdinStream = this.agentProcess?.stdin ? Writable.toWeb(this.agentProcess.stdin) : undefined;
+    const stdoutStream = this.agentProcess?.stdout
+      ? Readable.toWeb(this.agentProcess.stdout)
       : undefined;
     if (!stdinStream || !stdoutStream) {
       throw new Error("Failed to connect ACP client streams");
@@ -332,15 +344,19 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
       clientInfo: CLIENT_INFO,
     });
     this.agentCapabilities = initResponse.agentCapabilities;
+    this._onDidStart.fire();
+    this.mode = mode;
   }
 
-  private stopProcess(): void {
-    if (this.child && !this.child.killed) {
-      this.child.kill();
+  private async stopProcess(): Promise<void> {
+    if (this.agentProcess && !this.agentProcess.killed) {
+      this.agentProcess.kill();
+      await this.connection?.closed;
     }
-    this.child = undefined;
-    this.connection = undefined;
-    this.readyPromise = undefined;
+
+    this.agentProcess = null;
+    this.connection = null;
+    this.readyPromise = null;
   }
 }
 
