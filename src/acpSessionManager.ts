@@ -270,7 +270,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
         status: ChatSessionStatus.Completed,
         resource: resource,
         timing: {
-          startTime: Number(session.updatedAt),
+          created: Number(session.updatedAt),
         },
       });
     }

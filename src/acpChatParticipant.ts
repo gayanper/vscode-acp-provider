@@ -319,7 +319,10 @@ export class AcpChatParticipant extends DisposableBase {
       }
       case "tool_call": {
         const info = getToolInfo(update);
-        response.prepareToolInvocation(info.name);
+
+        response.beginToolInvocation(update.toolCallId, info.name, {
+          partialInput: info.input,
+        });
 
         const invocation = new vscode.ChatToolInvocationPart(
           info.name,
@@ -333,7 +336,6 @@ export class AcpChatParticipant extends DisposableBase {
           title: info.name,
         });
 
-        response.push(invocation);
         break;
       }
       case "tool_call_update": {
@@ -347,18 +349,18 @@ export class AcpChatParticipant extends DisposableBase {
 
         if (update.status === "completed" || update.status === "failed") {
           part.isConfirmed = update.status === "completed";
-          part.isError = update.status === "failed" || undefined;
+          part.isError = update.status === "failed" ? true : undefined;
           part.isComplete = true;
-          part.invocationMessage = info.output ?? "";
+          part.pastTenseMessage = info.output ?? ""; // Use pastTenseMessage for completed state
           response.push(part);
 
           this.handleToolContents(update, response);
 
-          this.logger.info(
-            `[tool_call] ${tracked.title} \n Input: ${info.input ?? "N/A"} \n Output: ${info.output ?? "N/A"}\n Status: ${update.status} \n\n`,
-          );
-
           this.toolInvocations.delete(update.toolCallId);
+        } else if (update.status === "in_progress") {
+          response.updateToolInvocation(update.toolCallId, {
+            partialInput: info.input,
+          });
         }
         break;
       }
@@ -378,6 +380,9 @@ export class AcpChatParticipant extends DisposableBase {
         break;
       }
       case "current_mode_update": {
+        break;
+      }
+      case "session_info_update": {
         break;
       }
       default:
@@ -461,80 +466,5 @@ export class AcpChatParticipant extends DisposableBase {
       }
       stream.markdown(diffMarkdown);
     }
-  }
-
-  private toInlineDiff(oldText: string, newText: string): string {
-    const normalize = (text: string): string => text.replace(/\r\n?/g, "\n");
-    const original = normalize(oldText);
-    const updated = normalize(newText);
-
-    if (original === updated) {
-      return "";
-    }
-
-    const oldLines = original.split("\n");
-    const newLines = updated.split("\n");
-    const m = oldLines.length;
-    const n = newLines.length;
-
-    const lcs = Array.from({ length: m + 1 }, () =>
-      new Array<number>(n + 1).fill(0),
-    );
-
-    for (let i = m - 1; i >= 0; i--) {
-      for (let j = n - 1; j >= 0; j--) {
-        if (oldLines[i] === newLines[j]) {
-          lcs[i][j] = lcs[i + 1][j + 1] + 1;
-        } else {
-          lcs[i][j] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
-        }
-      }
-    }
-
-    type DiffOp = { type: "common" | "add" | "remove"; line: string };
-    const script: DiffOp[] = [];
-    let i = 0;
-    let j = 0;
-
-    while (i < m && j < n) {
-      if (oldLines[i] === newLines[j]) {
-        script.push({ type: "common", line: oldLines[i] });
-        i++;
-        j++;
-      } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
-        script.push({ type: "remove", line: oldLines[i] });
-        i++;
-      } else {
-        script.push({ type: "add", line: newLines[j] });
-        j++;
-      }
-    }
-
-    while (i < m) {
-      script.push({ type: "remove", line: oldLines[i] });
-      i++;
-    }
-    while (j < n) {
-      script.push({ type: "add", line: newLines[j] });
-      j++;
-    }
-
-    const hasChanges = script.some((part) => part.type !== "common");
-    if (!hasChanges) {
-      return "";
-    }
-
-    const diffLines: string[] = ["--- original", "+++ modified"];
-    const oldStart = m > 0 ? 1 : 0;
-    const newStart = n > 0 ? 1 : 0;
-    diffLines.push(`@@ -${oldStart},${m} +${newStart},${n} @@`);
-
-    for (const part of script) {
-      const prefix =
-        part.type === "add" ? "+" : part.type === "remove" ? "-" : " ";
-      diffLines.push(`${prefix}${part.line}`);
-    }
-
-    return diffLines.join("\n");
   }
 }

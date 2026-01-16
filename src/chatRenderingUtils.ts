@@ -4,6 +4,7 @@ import * as vscode from "vscode";
 
 export type ToolInfo = {
   name: string;
+  kind: string;
   input?: string;
   output?: string;
 };
@@ -13,6 +14,7 @@ export function getToolInfo(
 ): ToolInfo {
   const response: ToolInfo = {
     name: toolCallUpdate.title || "",
+    kind: toolCallUpdate.kind || "terminal",
   };
 
   if (

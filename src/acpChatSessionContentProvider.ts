@@ -60,9 +60,7 @@ export class AcpChatSessionContentProvider
 
   provideChatSessionProviderOptions(
     token: vscode.CancellationToken,
-  ):
-    | Thenable<vscode.ChatSessionProviderOptions>
-    | vscode.ChatSessionProviderOptions {
+  ): Thenable<vscode.ChatSessionProviderOptions> {
     return this.sessionManager.getOptions().then((options) => {
       return this.buildOptionsGroup(options);
     });
