@@ -44,6 +44,8 @@ export interface PreprogrammedPromptProgram {
   readonly notifications?: NotificationSource;
   readonly response?: PromptResponse;
   readonly permission?: PreprogrammedPermissionConfig;
+  readonly permissions?: readonly PreprogrammedPermissionConfig[];
+  readonly notificationSteps?: readonly PromptNotificationPlan[];
 }
 
 export interface PreprogrammedSessionConfig {
@@ -193,7 +195,47 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
 
     this.currentProgram = program;
 
-    if (this.currentProgram.permission) {
+    if (this.currentProgram.permissions?.length) {
+      const permissions = this.currentProgram.permissions;
+      for (let index = 0; index < permissions.length; index += 1) {
+        const permission = permissions[index];
+        const response = await this.requestPermission({
+          options: [
+            {
+              kind: "allow_always",
+              name: "Allow",
+              optionId: "allow",
+            },
+            {
+              kind: "reject_always",
+              name: "Reject",
+              optionId: "deny",
+            },
+          ],
+          sessionId: this.sessionId,
+          toolCall: {
+            toolCallId: `preprogrammed-tool-call-${index + 1}`,
+            title: permission.title,
+            rawInput: permission.rawInput,
+          },
+        });
+
+        if (response.outcome.outcome !== "selected") {
+          throw new Error("Permission request was not completed");
+        }
+
+        const stepPlan =
+          this.currentProgram.notificationSteps?.[index] ??
+          (this.currentProgram.notifications as
+            | PromptNotificationPlan
+            | undefined);
+        if (response.outcome.optionId === "allow") {
+          await this.streamNotificationPlan(stepPlan, "permissionAllowed");
+        } else {
+          await this.streamNotificationPlan(stepPlan, "permissionDenied");
+        }
+      }
+    } else if (this.currentProgram.permission) {
       const permission = this.currentProgram.permission;
       const response = await this.requestPermission({
         options: [

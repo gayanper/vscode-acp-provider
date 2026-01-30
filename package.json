@@ -108,7 +108,7 @@
               "command"
             ],
             "properties": {
-              "title": {
+              "label": {
                 "type": "string",
                 "description": "Display label shown in the chat UI"
               },
@@ -182,29 +182,27 @@
             }
           },
           "description": "List of ACP agents to use with their command and arguments",
-          "default": [
-            {
-              "cagent": {
-                "title": "Cagent",
-                "command": "/opt/homebrew/bin/cagent",
-                "args": [
-                  "acp",
-                  "/path/to/your/agents/cagent.yaml"
-                ],
-                "mcpServers": [
-                  {
-                    "type": "stdio",
-                    "name": "my-stdio-tooling",
-                    "command": "/opt/homebrew/bin/my-mcp",
-                    "args": [
-                      "serve"
-                    ]
-                  }
-                ],
-                "enabled": false
-              }
+          "default": {
+            "cagent": {
+              "label": "Cagent",
+              "command": "/opt/homebrew/bin/cagent",
+              "args": [
+                "acp",
+                "/path/to/your/agents/cagent.yaml"
+              ],
+              "mcpServers": [
+                {
+                  "type": "stdio",
+                  "name": "my-stdio-tooling",
+                  "command": "/opt/homebrew/bin/my-mcp",
+                  "args": [
+                    "serve"
+                  ]
+                }
+              ],
+              "enabled": false
             }
-          ]
+          }
         }
       }
     },
@@ -238,5 +236,8 @@
   "license": "MIT",
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.12.0"
-  }
+  },
+  "trustedDependencies": [
+    "@vscode/vsce-sign"
+  ]
 }

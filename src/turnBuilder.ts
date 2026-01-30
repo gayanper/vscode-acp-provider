@@ -6,7 +6,12 @@ import {
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
-import { buildDiffMarkdown, getToolInfo } from "./chatRenderingUtils";
+import {
+  buildDiffMarkdown,
+  getToolInfo,
+  renderContentBlockAsMarkdown,
+  renderContentBlockAsPlainText,
+} from "./chatRenderingUtils";
 
 /**
  * Builds VS Code chat turns from ACP session notification events.
@@ -107,7 +112,10 @@ export class TurnBuilder {
   }
 
   private captureUserMessageChunk(content?: ContentBlock): void {
-    const text = this.getContentText(content);
+    if (!content) {
+      return;
+    }
+    const text = renderContentBlockAsPlainText(content);
     if (!text) {
       return;
     }
@@ -119,9 +127,21 @@ export class TurnBuilder {
   }
 
   private captureAgentMessageChunk(content?: ContentBlock): void {
-    const text = this.getContentText(content);
-    if (text) {
-      this.agentMessageChunks.push(text);
+    if (!content) {
+      return;
+    }
+
+    if (content.type === "text") {
+      this.agentMessageChunks.push(content.text);
+      return;
+    }
+
+    const markdown = renderContentBlockAsMarkdown(content);
+    if (markdown) {
+      this.flushAgentMessageChunksToMarkdown();
+      this.currentAgentParts.push(
+        new vscode.ChatResponseMarkdownPart(markdown),
+      );
     }
   }
 
@@ -150,7 +170,7 @@ export class TurnBuilder {
     part.isConfirmed = update.status === "completed";
     part.isError = update.status === "failed" || undefined;
     part.isComplete = true;
-    part.invocationMessage = info.output ?? "";
+    part.pastTenseMessage = info.output ?? "";
 
     if (!update.content?.length) {
       return;

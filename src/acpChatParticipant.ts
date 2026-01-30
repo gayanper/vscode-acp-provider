@@ -9,7 +9,12 @@ import * as vscode from "vscode";
 import { AcpSessionManager, Session } from "./acpSessionManager";
 import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
-import { buildDiffMarkdown, getToolInfo, ToolInfo } from "./chatRenderingUtils";
+import {
+  buildDiffMarkdown,
+  getToolInfo,
+  renderContentBlockAsMarkdown,
+} from "./chatRenderingUtils";
+import { VscodeSessionOptions } from "./types";
 
 export class AcpChatParticipant extends DisposableBase {
   requestHandler: vscode.ChatRequestHandler = this.handleRequest.bind(this);
@@ -89,7 +94,7 @@ export class AcpChatParticipant extends DisposableBase {
       if (token.isCancellationRequested) {
         return;
       }
-      this.renderSessionUpdate(notification, response);
+      this.renderSessionUpdate(session, notification, response);
 
       timeout = setTimeout(() => {
         response.progress("Working...");
@@ -153,8 +158,10 @@ export class AcpChatParticipant extends DisposableBase {
       // Render a Copilot-style error message in chat
       response.markdown(`> **Error:** ACP request failed. ${message}`);
     } finally {
+      clearTimeout(timeout);
       session.pendingRequest?.permissionContext?.dispose();
       session.pendingRequest = undefined;
+      cancellation.dispose();
       cancellationRegistration.dispose();
       subscription.dispose();
     }
@@ -289,6 +296,7 @@ export class AcpChatParticipant extends DisposableBase {
   }
 
   private renderSessionUpdate(
+    session: Session,
     notification: SessionNotification,
     response: vscode.ChatResponseStream,
   ): void {
@@ -297,9 +305,11 @@ export class AcpChatParticipant extends DisposableBase {
 
     switch (update.sessionUpdate) {
       case "agent_message_chunk": {
-        const text = this.getContentText(update.content);
-        if (text) {
-          response.markdown(text);
+        const markdown = update.content
+          ? renderContentBlockAsMarkdown(update.content)
+          : undefined;
+        if (markdown) {
+          response.markdown(markdown);
         } else {
           response.warning(
             "Received a non-text message from the agent that cannot be rendered.",
@@ -380,6 +390,18 @@ export class AcpChatParticipant extends DisposableBase {
         break;
       }
       case "current_mode_update": {
+        if (update.currentModeId) {
+          this.sessionManager.updateSessionOptions(
+            session,
+            [
+              {
+                optionId: VscodeSessionOptions.Mode,
+                value: update.currentModeId,
+              },
+            ],
+            true,
+          );
+        }
         break;
       }
       case "session_info_update": {

@@ -81,6 +81,9 @@ export function createTestAcpClientWithScenarios(
   addToolCallFailure(config);
   addToolCallSuccess(config);
   addToolCallDiffPreview(config);
+  addResourceLinkRendering(config);
+  addMultiplePermissionPrompts(config);
+  addSessionCommitScenario(config);
   addResumeSessionScenario(config);
 
   // create a new prompt which lists these scenarios when typed "list"
@@ -517,4 +520,148 @@ function addResumeSessionScenario(config: PreprogrammedConfig) {
       },
     },
   ];
+}
+
+function addResourceLinkRendering(config: PreprogrammedConfig) {
+  config.promptPrograms?.push({
+    promptText: "show resource link",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "resource_link",
+              name: "status.md",
+              title: "Project Status",
+              uri: "file:///workspace/status.md",
+              description: "Latest project status",
+            },
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "resource",
+              resource: {
+                uri: "file:///workspace/notes.md",
+                text: "Meeting notes: action items and owners",
+              },
+            },
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "Shared the latest project resources.",
+            },
+          },
+        },
+      ],
+    },
+  });
+}
+
+function addMultiplePermissionPrompts(config: PreprogrammedConfig) {
+  config.promptPrograms?.push({
+    promptText: "multi permission",
+    permissions: [
+      {
+        title: "Allow access to telemetry endpoint?",
+        rawInput: {
+          command: ["/bin/sh", "-c", "curl https://api.example.com/telemetry"],
+        },
+      },
+      {
+        title: "Allow access to incident report?",
+        rawInput: {
+          command: [
+            "/bin/sh",
+            "-c",
+            "curl https://api.example.com/incidents/latest",
+          ],
+        },
+      },
+    ],
+    notificationSteps: [
+      {
+        permissionAllowed: [
+          {
+            sessionId: "test-session-id",
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              content: {
+                type: "text",
+                text: "Telemetry access granted.",
+              },
+            },
+          },
+        ],
+        permissionDenied: [
+          {
+            sessionId: "test-session-id",
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              content: {
+                type: "text",
+                text: "Telemetry access denied.",
+              },
+            },
+          },
+        ],
+      },
+      {
+        permissionAllowed: [
+          {
+            sessionId: "test-session-id",
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              content: {
+                type: "text",
+                text: "Incident access granted.",
+              },
+            },
+          },
+        ],
+        permissionDenied: [
+          {
+            sessionId: "test-session-id",
+            update: {
+              sessionUpdate: "agent_message_chunk",
+              content: {
+                type: "text",
+                text: "Incident access denied.",
+              },
+            },
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function addSessionCommitScenario(config: PreprogrammedConfig) {
+  config.promptPrograms?.push({
+    promptText: "commit session",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "Session committed and ready to resume.",
+            },
+          },
+        },
+      ],
+    },
+  });
 }

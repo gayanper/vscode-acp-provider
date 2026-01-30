@@ -22,6 +22,12 @@ export class AcpChatSessionContentProvider
         this._onDidChangeChatSessionProviderOptions.fire();
       }),
     );
+
+    this._register(
+      sessionManager.onDidChangeSessionOptions((event) => {
+        this._onDidChangeChatSessionOptions.fire(event);
+      }),
+    );
   }
 
   // start event definitions --------------------------------------------------
@@ -51,8 +57,8 @@ export class AcpChatSessionContentProvider
       history: history || [],
       requestHandler: this.participant.requestHandler,
       options: {
-        [VscodeSessionOptions.Mode]: acpSession.defaultChatOptions.modeId,
-        [VscodeSessionOptions.Model]: acpSession.defaultChatOptions.modelId,
+        [VscodeSessionOptions.Mode]: acpSession.options.modeId,
+        [VscodeSessionOptions.Model]: acpSession.options.modelId,
       },
     };
     return session;
@@ -121,15 +127,32 @@ export class AcpChatSessionContentProvider
       return;
     }
 
-    updates.forEach((update) => {
-      if (update.optionId === VscodeSessionOptions.Mode && update.value) {
-        session.client.changeMode(session.acpSessionId, update.value);
+    for (const update of updates) {
+      if (!update.value) {
+        continue;
       }
 
-      if (update.optionId === VscodeSessionOptions.Model && update.value) {
-        session.client.changeModel(session.acpSessionId, update.value);
+      try {
+        if (update.optionId === VscodeSessionOptions.Mode) {
+          await session.client.changeMode(session.acpSessionId, update.value);
+        }
+
+        if (update.optionId === VscodeSessionOptions.Model) {
+          await session.client.changeModel(session.acpSessionId, update.value);
+        }
+
+        this.sessionManager.updateSessionOptions(session, [update], false);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error ?? "Unknown");
+        this.logChannel.error(
+          `Failed to update session option ${update.optionId}: ${message}`,
+        );
+        vscode.window.showErrorMessage(
+          `Failed to update ${update.optionId}: ${message}`,
+        );
       }
-    });
+    }
   }
 
   override dispose(): void {

@@ -48,8 +48,9 @@ export class PermissionPromptManager
   extends DisposableBase
   implements AcpPermissionHandler
 {
-  private sessionContext: SessionChatContext | null = null;
-  private pendingPrompt: PendingPrompt | null = null;
+  private sessionContexts = new Map<string, SessionChatContext>();
+  private pendingPrompts = new Map<string, PendingPrompt>();
+  private promptCounter = 0;
 
   constructor(private readonly logger: vscode.LogOutputChannel) {
     super();
@@ -63,8 +64,6 @@ export class PermissionPromptManager
       });
     }
 
-    this.clearSession(sessionId);
-
     const chatContext: SessionChatContext = {
       sessionId,
       response: context.response,
@@ -73,32 +72,35 @@ export class PermissionPromptManager
       token: context.token,
     };
 
-    this.sessionContext = chatContext;
+    this.sessionContexts.set(sessionId, chatContext);
     return new vscode.Disposable(() => {
-      if (this.sessionContext) {
-        this.clearSession(this.sessionContext.sessionId);
+      const existing = this.sessionContexts.get(sessionId);
+      if (existing === chatContext) {
+        this.clearSession(sessionId);
       }
     });
   }
 
   clearSession(sessionId: string): void {
-    this.sessionContext = null;
-    if (this.pendingPrompt && this.pendingPrompt.sessionId === sessionId) {
-      this.resolvePrompt(this.pendingPrompt.promptId, {
-        outcome: { outcome: "cancelled" },
-      });
+    this.sessionContexts.delete(sessionId);
+    for (const [promptId, prompt] of this.pendingPrompts.entries()) {
+      if (prompt.sessionId === sessionId) {
+        this.resolvePrompt(promptId, {
+          outcome: { outcome: "cancelled" },
+        });
+      }
     }
   }
 
   async requestPermission(
     request: RequestPermissionRequest,
   ): Promise<RequestPermissionResponse> {
-    const context = this.sessionContext;
+    const context = this.sessionContexts.get(request.sessionId);
     if (!context) {
       return this.promptViaModal(request);
     }
 
-    const promptId = this.createPromptId();
+    const promptId = this.createPromptId(request.sessionId);
     return await new Promise<RequestPermissionResponse>((resolve, reject) => {
       const pending: PendingPrompt = {
         promptId,
@@ -122,7 +124,7 @@ export class PermissionPromptManager
         );
       }
 
-      this.pendingPrompt = pending;
+      this.pendingPrompts.set(promptId, pending);
       this.renderChatPrompt(pending);
     });
   }
@@ -132,7 +134,7 @@ export class PermissionPromptManager
       return;
     }
 
-    const pending = this.pendingPrompt;
+    const pending = this.pendingPrompts.get(payload.promptId);
     if (!pending || pending.sessionId !== payload.sessionId) {
       return;
     }
@@ -165,18 +167,20 @@ export class PermissionPromptManager
     promptId: string,
     response: RequestPermissionResponse,
   ): void {
-    const pending = this.pendingPrompt;
+    const pending = this.pendingPrompts.get(promptId);
     if (!pending) {
       return;
     }
 
-    this.pendingPrompt = null;
+    this.pendingPrompts.delete(promptId);
     pending.cancellationListener?.dispose();
     pending.resolve(response);
   }
 
   private renderChatPrompt(pending: PendingPrompt): void {
-    this.logger.trace(JSON.stringify(pending));
+    this.logger.trace(
+      `Permission prompt ${pending.promptId} for session ${pending.sessionId}`,
+    );
 
     const context = pending.context;
     if (!context) {
@@ -205,16 +209,21 @@ export class PermissionPromptManager
       });
     }
 
-    context.response.button({
-      title: "Deny",
-      command: commandId,
-      arguments: [
-        {
-          promptId: pending.promptId,
-          sessionId: pending.sessionId,
-        } satisfies PermissionResolutionPayload,
-      ],
-    });
+    const hasRejectOption = pending.request.options.some((option) =>
+      option.kind.startsWith("reject"),
+    );
+    if (!hasRejectOption) {
+      context.response.button({
+        title: "Cancel",
+        command: commandId,
+        arguments: [
+          {
+            promptId: pending.promptId,
+            sessionId: pending.sessionId,
+          } satisfies PermissionResolutionPayload,
+        ],
+      });
+    }
   }
 
   private async promptViaModal(
@@ -255,7 +264,8 @@ export class PermissionPromptManager
     pending.context?.response.markdown(message);
   }
 
-  private createPromptId(): string {
-    return `acp-permission-${this.sessionContext?.sessionId}`;
+  private createPromptId(sessionId: string): string {
+    this.promptCounter += 1;
+    return `acp-permission-${sessionId}-${Date.now()}-${this.promptCounter}`;
   }
 }

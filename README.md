@@ -27,7 +27,7 @@ Add ACP agents under the `acpClient.agents` setting (User or Workspace) to surfa
 ```json
 "acpClient.agents": {
   "cagent": {
-    "title": "Docker cagent",
+    "label": "Docker cagent",
     "command": "/opt/bin/cagent",
     "args": [
       "acp",
@@ -47,7 +47,7 @@ Add ACP agents under the `acpClient.agents` setting (User or Workspace) to surfa
     "enabled": false
   },
   "opencode": {
-    "title": "OpenCode Agent",
+    "label": "OpenCode Agent",
     "command": "/opt/bin/opencode",
     "args": [
       "acp"
@@ -98,3 +98,11 @@ To build the extension locally you can follow these steps:
 
 After configuring you should see the configured agents in the chat session picker. Select one to start a new chat session with the external agent.
 ![Chat Session Picker](docs/readme/picker.png)
+
+## Manual Checklist (VS Code Insiders)
+
+- Create a new ACP session, send a prompt, cancel, reopen, and resume.
+- Verify tool call lifecycle UI: in-progress, completed, failed.
+- Trigger permission prompts and test allow/deny paths.
+- Change mode/model in the picker and confirm the agent receives updates.
+- Start two new sessions and confirm each remains distinct after commit.
