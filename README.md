@@ -74,11 +74,11 @@ To build the extension locally you can follow these steps:
    ```
 3. Install the dependencies
    ```bash
-   npm install
+   bun install
    ```
 4. Build the extension
    ```bash
-   npm run package
+   bun run package
    ```
 5. Open VSCode Insider and install the extension
    - Open the command palette (Ctrl+Shift+P or Cmd+Shift+P on Mac)

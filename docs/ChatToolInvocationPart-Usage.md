@@ -135,7 +135,7 @@ response.push(part);
 
 ```typescript
 const part = new vscode.ChatToolInvocationPart("terminal_run", "call-102");
-part.invocationMessage = "Run `npm install`";
+part.invocationMessage = "Run `bun install`";
 part.originMessage = "Install dependencies for the project";
 part.isConfirmed = false; // Triggers confirmation dialog
 ```
@@ -257,8 +257,8 @@ interface ChatTerminalToolInvocationData {
 const part = new vscode.ChatToolInvocationPart("terminal_run", "call-106");
 part.toolSpecificData = {
   commandLine: {
-    original: "npm install lodash",
-    userEdited: "npm install lodash@4.17.21", // User modified version
+    original: "bun install lodash",
+    userEdited: "bun install lodash@4.17.21", // User modified version
   },
   language: "bash",
 };
@@ -269,7 +269,7 @@ response.push(part);
 
 ```
 ┌─────────────────────────────────────┐
-│ $ npm install lodash@4.17.21        │
+│ $ bun install lodash@4.17.21        │
 │                        [Run] [Edit] │
 └─────────────────────────────────────┘
 ```
@@ -403,7 +403,7 @@ response.push(part);
 │                                                              │
 │  ┌─ If toolSpecificData (terminal) ───────────────────────┐  │
 │  │  ┌───────────────────────────────────┐                 │  │
-│  │  │ $ npm install                     │                 │  │
+│  │  │ $ bun install                     │                 │  │
 │  │  │                      [Run] [Edit] │                 │  │
 │  │  └───────────────────────────────────┘                 │  │
 │  └────────────────────────────────────────────────────────┘  │
@@ -568,13 +568,13 @@ response.push(part);
 const part = new vscode.ChatToolInvocationPart("bash", toolCallId);
 part.toolSpecificData = {
   commandLine: {
-    original: "npm install",
-    userEdited: "npm install --save-dev", // User can modify
+    original: "bun install",
+    userEdited: "bun install --save-dev", // User can modify
   },
   language: "bash",
 };
 part.isComplete = true;
-part.pastTenseMessage = "Ran npm install";
+part.pastTenseMessage = "Ran bun install";
 response.push(part);
 ```
 
