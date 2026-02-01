@@ -199,7 +199,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
       cwd,
       mcpServers: serializeMcpServers(mcpServers),
     };
-    
+
     // Add 10 second timeout for faster failure feedback
     const timeoutMs = 10_000;
     let timeoutId: NodeJS.Timeout | null = null;
@@ -676,12 +676,18 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
       return;
     }
     const args = Array.from(this.agent.args ?? []);
+    // Use workspace CWD as default instead of extension host's process.cwd()
+    // This matches the behavior when running agents from a terminal in the workspace
+    const workspaceCwd = getWorkspaceCwd();
+    const resolvedCwd = this.agent.cwd ?? (workspaceCwd || process.cwd());
+    const resolvedEnv = {
+      ...process.env,
+      ...this.agent.env,
+    };
+
     const agentProc = spawn(this.agent.command, args, {
-      cwd: this.agent.cwd ?? process.cwd(),
-      env: {
-        ...process.env,
-        ...this.agent.env,
-      },
+      cwd: resolvedCwd,
+      env: resolvedEnv,
       stdio: ["pipe", "pipe", "pipe"],
     });
     agentProc.stderr?.on("data", (data) => {
@@ -740,10 +746,10 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
 
     const initRacers = [
       this.connection.initialize({
-      protocolVersion: PROTOCOL_VERSION,
-      clientCapabilities: CLIENT_CAPABILITIES,
-      clientInfo: CLIENT_INFO,
-    }),
+        protocolVersion: PROTOCOL_VERSION,
+        clientCapabilities: CLIENT_CAPABILITIES,
+        clientInfo: CLIENT_INFO,
+      }),
       initTimeoutPromise,
     ] as const;
 
