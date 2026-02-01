@@ -2,7 +2,9 @@
   "compilerOptions": {
     "module": "nodenext",
     "target": "esnext",
-    "lib": ["ES2024"],
+    "lib": [
+      "ES2024"
+    ],
     "sourceMap": true,
     "rootDir": "src",
     "outDir": "out",
@@ -12,6 +14,12 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "nodenext"
   },
-  "include": ["src/**/*", "vscode.proposed.*.d.ts"],
-  "exclude": ["node_modules", ".vscode-test"]
+  "include": [
+    "src/**/*",
+    "vscode.proposed.*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".vscode-test"
+  ]
 }

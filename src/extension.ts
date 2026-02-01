@@ -114,4 +114,4 @@ function registerAgents(params: {
   });
 }
 
-export function deactivate(): void {}
+export function deactivate(): void { }

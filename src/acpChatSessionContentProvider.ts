@@ -8,8 +8,7 @@ import { VscodeSessionOptions } from "./types";
 
 export class AcpChatSessionContentProvider
   extends DisposableBase
-  implements vscode.ChatSessionContentProvider
-{
+  implements vscode.ChatSessionContentProvider {
   constructor(
     private readonly sessionManager: AcpSessionManager,
     private readonly participant: AcpChatParticipant,

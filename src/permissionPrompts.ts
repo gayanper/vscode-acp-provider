@@ -46,8 +46,7 @@ export function createPermissionResolveCommandId(agentId: string): string {
 
 export class PermissionPromptManager
   extends DisposableBase
-  implements AcpPermissionHandler
-{
+  implements AcpPermissionHandler {
   private sessionContexts = new Map<string, SessionChatContext>();
   private pendingPrompts = new Map<string, PendingPrompt>();
   private promptCounter = 0;
@@ -187,7 +186,7 @@ export class PermissionPromptManager
     const toolCall = pending.request.toolCall;
     const message = new vscode.MarkdownString(
       toolCall.title ??
-        `\`\`\`json\n ${JSON.stringify(toolCall.rawInput)}\n\`\`\``,
+      `\`\`\`json\n ${JSON.stringify(toolCall.rawInput)}\n\`\`\``,
     );
     context.response.markdown("## Permission Required");
     context.response.markdown(message);

@@ -14,8 +14,7 @@ export function createAcpChatSessionItemProvider(
 
 class AcpChatSessionItemProvider
   extends DisposableBase
-  implements vscode.ChatSessionItemProvider
-{
+  implements vscode.ChatSessionItemProvider {
   constructor(
     private readonly sessionManager: AcpSessionManager,
     private readonly sessionStore: SessionStore,

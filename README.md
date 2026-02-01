@@ -65,21 +65,29 @@ At the moment the extension is under development, so this is not yet published i
 To build the extension locally you can follow these steps:
 
 1. Clone the repository
+
    ```bash
    git clone https://github.com/gayanper/vscode-acp-provider.git
    ```
+
 2. Navigate to the project directory
+
    ```bash
    cd vscode-acp-provider
    ```
+
 3. Install the dependencies
+
    ```bash
    bun install
    ```
+
 4. Build the extension
+
    ```bash
    bun run package
    ```
+
 5. Open VSCode Insider and install the extension
    - Open the command palette (Ctrl+Shift+P or Cmd+Shift+P on Mac)
    - Type `Extensions: Install from VSIX...` and select it
@@ -89,9 +97,11 @@ To build the extension locally you can follow these steps:
    - Open the command palette (Ctrl+Shift+P or Cmd+Shift+P on Mac)
    - Type `Preferences: Configure Runtime Arguments` and select it
    - Add the following line to the `argv.json` file that opens:
+
      ```json
      "enable-proposed-api": ["org-gap.vscode-acp-client"]
      ```
+
    - Save the file and restart VSCode Insider
 
 ## Usage
