@@ -9,7 +9,16 @@ import * as vscode from "vscode";
 import { AcpSessionManager, Session } from "./acpSessionManager";
 import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
-import { buildDiffMarkdown, getToolInfo, ToolInfo } from "./chatRenderingUtils";
+import {
+  buildDiffStats,
+  buildMcpToolInvocationData,
+  buildTerminalToolInvocationData,
+  getSubAgentInvocationId,
+  getToolInfo,
+  isTerminalToolInvocation,
+  resolveDiffUri,
+} from "./chatRenderingUtils";
+import { createDiffUri, setDiffContent } from "./diffContentProvider";
 
 export class AcpChatParticipant extends DisposableBase {
   requestHandler: vscode.ChatRequestHandler = this.handleRequest.bind(this);
@@ -28,8 +37,9 @@ export class AcpChatParticipant extends DisposableBase {
   private readonly toolInvocations = new Map<
     string,
     {
-      part: vscode.ChatToolInvocationPart;
-      title: string;
+      name: string;
+      invocationMessage?: string;
+      subAgentInvocationId?: string;
     }
   >();
 
@@ -319,49 +329,83 @@ export class AcpChatParticipant extends DisposableBase {
       }
       case "tool_call": {
         const info = getToolInfo(update);
-
-        response.beginToolInvocation(update.toolCallId, info.name, {
-          partialInput: info.input,
-        });
-
-        const invocation = new vscode.ChatToolInvocationPart(
-          info.name,
-          update.toolCallId,
-          false,
-        );
-        invocation.invocationMessage = info.input ?? "";
-
+        const subAgentInvocationId = getSubAgentInvocationId(update);
+        const invocationMessage = info.input ?? "";
         this.toolInvocations.set(update.toolCallId, {
-          part: invocation,
-          title: info.name,
+          name: info.name,
+          invocationMessage,
+          subAgentInvocationId,
         });
+        const partialInput = update.rawInput ?? info.input;
+        const streamData:
+          | (vscode.ChatToolInvocationStreamData & {
+              subagentInvocationId?: string;
+            })
+          | undefined =
+          partialInput !== undefined || subAgentInvocationId
+            ? {
+                ...(partialInput !== undefined ? { partialInput } : {}),
+                ...(subAgentInvocationId
+                  ? { subagentInvocationId: subAgentInvocationId }
+                  : {}),
+              }
+            : undefined;
+        response.beginToolInvocation(
+          update.toolCallId,
+          info.name || "Tool",
+          streamData,
+        );
 
         break;
       }
       case "tool_call_update": {
         const tracked = this.toolInvocations.get(update.toolCallId);
-        if (!tracked) {
+        const info = getToolInfo(update);
+        if (update.status !== "completed" && update.status !== "failed") {
+          if (info.input) {
+            if (tracked) {
+              tracked.invocationMessage = info.input;
+            }
+            response.updateToolInvocation(update.toolCallId, {
+              partialInput: update.rawInput ?? info.input,
+            });
+          }
           break;
         }
 
-        const info = getToolInfo(update);
-        const part = tracked.part;
-
-        if (update.status === "completed" || update.status === "failed") {
-          part.isConfirmed = update.status === "completed";
-          part.isError = update.status === "failed" ? true : undefined;
-          part.isComplete = true;
-          part.pastTenseMessage = info.output ?? ""; // Use pastTenseMessage for completed state
-          response.push(part);
-
-          this.handleToolContents(update, response);
-
-          this.toolInvocations.delete(update.toolCallId);
-        } else if (update.status === "in_progress") {
-          response.updateToolInvocation(update.toolCallId, {
-            partialInput: info.input,
-          });
+        const toolName = info.name || tracked?.name || "Tool";
+        const part = new vscode.ChatToolInvocationPart(
+          toolName,
+          update.toolCallId,
+          update.status === "failed",
+        );
+        part.originMessage = toolName;
+        const invocationMessage = info.input ?? tracked?.invocationMessage;
+        if (invocationMessage) {
+          part.invocationMessage = invocationMessage;
         }
+        if (info.output) {
+          part.pastTenseMessage = info.output;
+        }
+        part.isConfirmed = update.status === "completed";
+        part.isError = update.status === "failed" ? true : false;
+        part.isComplete = true;
+        if (update.status === "completed") {
+          part.presentation = "hiddenAfterComplete";
+        }
+        const subAgentInvocationId =
+          tracked?.subAgentInvocationId ?? getSubAgentInvocationId(update);
+        if (subAgentInvocationId) {
+          part.subAgentInvocationId = subAgentInvocationId;
+        }
+        const terminalData = isTerminalToolInvocation(update, info)
+          ? buildTerminalToolInvocationData(update, info)
+          : undefined;
+        part.toolSpecificData =
+          terminalData ?? buildMcpToolInvocationData(info);
+        response.push(part);
+        this.handleToolContents(update, response);
+        this.toolInvocations.delete(update.toolCallId);
         break;
       }
       case "plan": {
@@ -451,20 +495,90 @@ export class AcpChatParticipant extends DisposableBase {
       return;
     }
 
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+    const diffEntries: vscode.ChatResponseDiffEntry[] = [];
+    let diffIndex = 0;
     for (const content of update.content) {
       if (content.type !== "diff") {
         continue;
       }
 
-      const diffMarkdown = buildDiffMarkdown(
-        content.path,
-        content.oldText ?? undefined,
-        content.newText ?? undefined,
-      );
-      if (!diffMarkdown) {
-        continue;
+      const oldText = content.oldText ?? "";
+      const newText = content.newText ?? "";
+      const hasOriginal = content.oldText !== undefined;
+      const hasModified = content.newText !== undefined;
+      const isDeletion =
+        hasOriginal &&
+        (content.newText === "" || content.newText === undefined);
+      const fileUri = resolveDiffUri(content.path, workspaceRoot);
+      const originalUri = hasOriginal
+        ? createDiffUri({
+            side: "original",
+            toolCallId: update.toolCallId,
+            fileUri,
+            index: diffIndex,
+          })
+        : undefined;
+      const modifiedUri = hasModified
+        ? createDiffUri({
+            side: "modified",
+            toolCallId: update.toolCallId,
+            fileUri,
+            index: diffIndex,
+          })
+        : undefined;
+      if (originalUri) {
+        setDiffContent(originalUri, oldText);
       }
-      stream.markdown(diffMarkdown);
+      if (modifiedUri) {
+        setDiffContent(modifiedUri, newText);
+      }
+      diffEntries.push({
+        originalUri,
+        modifiedUri,
+        goToFileUri: fileUri,
+        ...buildDiffStats(
+          content.oldText ?? undefined,
+          content.newText ?? undefined,
+        ),
+      });
+      if (hasOriginal && hasModified && !isDeletion) {
+        stream.textEdit(
+          fileUri,
+          vscode.TextEdit.replace(this.getFullTextRange(oldText), newText),
+        );
+        stream.textEdit(fileUri, true);
+      } else if (!hasOriginal && hasModified) {
+        stream.workspaceEdit([{ newResource: fileUri }]);
+        if (newText) {
+          stream.textEdit(
+            fileUri,
+            vscode.TextEdit.insert(new vscode.Position(0, 0), newText),
+          );
+          stream.textEdit(fileUri, true);
+        }
+      } else if (isDeletion) {
+        stream.workspaceEdit([{ oldResource: fileUri }]);
+      }
+
+      diffIndex++;
     }
+
+    // text/workspace edits already render a single change entry.
+  }
+
+  private getFullTextRange(text: string): vscode.Range {
+    if (!text) {
+      return new vscode.Range(
+        new vscode.Position(0, 0),
+        new vscode.Position(0, 0),
+      );
+    }
+    const lines = text.split("\n");
+    const lastLine = lines[lines.length - 1] ?? "";
+    return new vscode.Range(
+      new vscode.Position(0, 0),
+      new vscode.Position(lines.length - 1, lastLine.length),
+    );
   }
 }

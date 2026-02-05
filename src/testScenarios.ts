@@ -242,6 +242,7 @@ function addToolCallFailure(config: PreprogrammedConfig) {
           update: {
             sessionUpdate: "tool_call",
             toolCallId: "python_tool_call_1",
+            kind: "execute",
             title: "Run Python Script",
             rawInput: {
               command: ["python3", "-c", "print('Hello World')"],
@@ -278,6 +279,7 @@ function addToolCallSuccess(config: PreprogrammedConfig) {
             sessionUpdate: "tool_call",
             toolCallId: "ls_tool_call_1",
             title: "List Directory",
+            kind: "execute",
             rawInput: {
               command: ["ls", "-la"],
             },
@@ -327,6 +329,7 @@ function addToolCallDiffPreview(config: PreprogrammedConfig) {
             rawInput: {
               command: ["apply_patch", "src/index.ts"],
             },
+            kind: "edit",
             status: "in_progress",
           },
         },
@@ -335,6 +338,7 @@ function addToolCallDiffPreview(config: PreprogrammedConfig) {
           update: {
             sessionUpdate: "tool_call_update",
             toolCallId: "diff_tool_call_1",
+            kind: "edit",
             content: [
               {
                 type: "diff",

@@ -6,7 +6,16 @@ import {
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
-import { buildDiffMarkdown, getToolInfo } from "./chatRenderingUtils";
+import {
+  buildDiffStats,
+  buildMcpToolInvocationData,
+  buildTerminalToolInvocationData,
+  getSubAgentInvocationId,
+  getToolInfo,
+  isTerminalToolInvocation,
+  resolveDiffUri,
+} from "./chatRenderingUtils";
+import { createDiffUri, setDiffContent } from "./diffContentProvider";
 
 /**
  * Builds VS Code chat turns from ACP session notification events.
@@ -14,17 +23,17 @@ import { buildDiffMarkdown, getToolInfo } from "./chatRenderingUtils";
 export class TurnBuilder {
   private currentUserMessage = "";
   private currentUserReferences: vscode.ChatPromptReference[] = [];
-  private currentAgentParts: (
-    | vscode.ChatResponsePart
-    | vscode.ChatToolInvocationPart
-  )[] = [];
+  private currentAgentParts: vscode.ExtendedChatResponsePart[] = [];
   private currentAgentMetadata: Record<string, unknown> = {};
   private agentMessageChunks: string[] = [];
   private turns: Array<vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2> = [];
   private readonly participantId: string;
   private readonly toolCallParts = new Map<
     string,
-    vscode.ChatToolInvocationPart
+    {
+      part: vscode.ChatToolInvocationPart;
+      invocationMessage?: string;
+    }
   >();
 
   constructor(participantId: string) {
@@ -128,49 +137,126 @@ export class TurnBuilder {
   private appendToolCall(update: ToolCall): void {
     const info = getToolInfo(update);
     const invocation = new vscode.ChatToolInvocationPart(
-      info.name,
+      info.name || "Tool",
       update.toolCallId,
       false,
     );
-    invocation.invocationMessage = info.input ?? "";
-    this.toolCallParts.set(update.toolCallId, invocation);
+    invocation.originMessage = info.name || "Tool";
+    if (info.input) {
+      invocation.invocationMessage = info.input;
+    }
+    const subAgentInvocationId = getSubAgentInvocationId(update);
+    if (subAgentInvocationId) {
+      invocation.subAgentInvocationId = subAgentInvocationId;
+    }
+    this.toolCallParts.set(update.toolCallId, {
+      part: invocation,
+      invocationMessage: info.input,
+    });
     this.currentAgentParts.push(invocation);
   }
 
   private appendToolUpdate(update: ToolCallUpdate): void {
-    if (update.status !== "completed" && update.status !== "failed") {
+    const tracked = this.toolCallParts.get(update.toolCallId);
+    if (!tracked) {
       return;
     }
-    const part = this.toolCallParts.get(update.toolCallId);
-    if (!part) {
+    const part = tracked.part;
+
+    const info = getToolInfo(update);
+    if (update.status !== "completed" && update.status !== "failed") {
+      if (info.input) {
+        part.invocationMessage = info.input;
+        tracked.invocationMessage = info.input;
+      }
       return;
     }
 
-    const info = getToolInfo(update);
     part.isConfirmed = update.status === "completed";
-    part.isError = update.status === "failed" || undefined;
+    part.isError = update.status === "failed" ? true : false;
     part.isComplete = true;
-    part.invocationMessage = info.output ?? "";
+    const invocationMessage = info.input ?? tracked.invocationMessage;
+    if (invocationMessage) {
+      part.invocationMessage = invocationMessage;
+    }
+    if (info.output) {
+      part.pastTenseMessage = info.output;
+    }
+    if (update.status === "completed") {
+      part.presentation = "hiddenAfterComplete";
+    }
+    const subAgentInvocationId = getSubAgentInvocationId(update);
+    if (subAgentInvocationId) {
+      part.subAgentInvocationId = subAgentInvocationId;
+    }
+    const terminalData = isTerminalToolInvocation(update, info)
+      ? buildTerminalToolInvocationData(update, info)
+      : undefined;
+    part.toolSpecificData = terminalData ?? buildMcpToolInvocationData(info);
+    this.toolCallParts.delete(update.toolCallId);
 
     if (!update.content?.length) {
       return;
     }
 
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+    const diffEntries: vscode.ChatResponseDiffEntry[] = [];
+    let diffIndex = 0;
     for (const content of update.content) {
       if (content.type !== "diff") {
         continue;
       }
 
-      const diffMarkdown = buildDiffMarkdown(
-        content.path,
-        content.oldText ?? undefined,
-        content.newText ?? undefined,
-      );
-      if (!diffMarkdown) {
-        continue;
+      const oldText = content.oldText ?? "";
+      const newText = content.newText ?? "";
+      const hasOriginal = content.oldText !== undefined;
+      const hasModified = content.newText !== undefined;
+      const isDeletion =
+        hasOriginal &&
+        (content.newText === "" || content.newText === undefined);
+      const fileUri = resolveDiffUri(content.path, workspaceRoot);
+      const originalUri = hasOriginal
+        ? createDiffUri({
+            side: "original",
+            toolCallId: update.toolCallId,
+            fileUri,
+            index: diffIndex,
+          })
+        : undefined;
+      const modifiedUri = hasModified
+        ? createDiffUri({
+            side: "modified",
+            toolCallId: update.toolCallId,
+            fileUri,
+            index: diffIndex,
+          })
+        : undefined;
+      if (originalUri) {
+        setDiffContent(originalUri, oldText);
       }
+      if (modifiedUri) {
+        setDiffContent(modifiedUri, newText);
+      }
+      diffEntries.push({
+        originalUri,
+        modifiedUri,
+        goToFileUri: fileUri,
+        ...buildDiffStats(
+          content.oldText ?? undefined,
+          content.newText ?? undefined,
+        ),
+      });
+
+      diffIndex++;
+    }
+
+    if (diffEntries.length) {
       this.currentAgentParts.push(
-        new vscode.ChatResponseMarkdownPart(diffMarkdown),
+        new vscode.ChatResponseMultiDiffPart(
+          diffEntries,
+          vscode.l10n.t("File edits"),
+          true,
+        ),
       );
     }
   }
@@ -210,6 +296,17 @@ export class TurnBuilder {
     this.currentUserReferences = [];
   }
 
+  private flushAgentMessageChunksToMarkdown(): void {
+    if (!this.agentMessageChunks.length) {
+      return;
+    }
+
+    const markdown = new vscode.MarkdownString();
+    markdown.appendMarkdown(this.agentMessageChunks.join(""));
+    this.agentMessageChunks = [];
+    this.currentAgentParts.push(new vscode.ChatResponseMarkdownPart(markdown));
+  }
+
   private flushPendingAgentMessage(): void {
     this.flushAgentMessageChunksToMarkdown();
 
@@ -217,30 +314,18 @@ export class TurnBuilder {
       return;
     }
 
-    this.turns.push(
-      new vscode.ChatResponseTurn2(
-        this.currentAgentParts,
-        { metadata: this.currentAgentMetadata },
-        this.participantId,
-      ),
+    const result: vscode.ChatResult =
+      Object.keys(this.currentAgentMetadata).length > 0
+        ? { metadata: this.currentAgentMetadata }
+        : {};
+    const responseTurn = new vscode.ChatResponseTurn2(
+      this.currentAgentParts,
+      result,
+      this.participantId,
     );
+    this.turns.push(responseTurn);
     this.currentAgentParts = [];
     this.currentAgentMetadata = {};
-  }
-
-  private flushAgentMessageChunksToMarkdown(): void {
-    if (!this.agentMessageChunks.length) {
-      return;
-    }
-
-    const content = this.agentMessageChunks.join("").trim();
-    this.agentMessageChunks = [];
-    if (!content) {
-      return;
-    }
-
-    const markdown = new vscode.MarkdownString(content);
-    this.currentAgentParts.push(new vscode.ChatResponseMarkdownPart(markdown));
   }
 
   private getContentText(content?: ContentBlock): string | undefined {
@@ -251,5 +336,20 @@ export class TurnBuilder {
       return content.text;
     }
     return undefined;
+  }
+
+  private getFullTextRange(text: string): vscode.Range {
+    if (!text) {
+      return new vscode.Range(
+        new vscode.Position(0, 0),
+        new vscode.Position(0, 0),
+      );
+    }
+    const lines = text.split("\n");
+    const lastLine = lines[lines.length - 1] ?? "";
+    return new vscode.Range(
+      new vscode.Position(0, 0),
+      new vscode.Position(lines.length - 1, lastLine.length),
+    );
   }
 }

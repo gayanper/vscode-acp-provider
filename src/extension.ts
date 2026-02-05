@@ -15,12 +15,15 @@ import { createSessionDb, SessionDb } from "./acpSessionDb";
 import { createTestAcpClientWithScenarios } from "./testScenarios";
 import { AcpClient } from "./acpClient";
 import { registerCommands } from "./commands";
+import { registerDiffContentProvider } from "./diffContentProvider";
 
 export async function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("ACP Client", {
     log: true,
   });
   context.subscriptions.push(outputChannel);
+
+  registerDiffContentProvider(context);
 
   const sessionDb = createSessionDb(context, outputChannel);
   context.subscriptions.push(sessionDb);

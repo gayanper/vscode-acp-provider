@@ -2,6 +2,8 @@
 import { ToolCall, ToolCallUpdate } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 
+const DEFAULT_TERMINAL_LANGUAGE = "shell";
+
 export type ToolInfo = {
   name: string;
   kind: string;
@@ -95,6 +97,114 @@ export function getToolInfo(
   return response;
 }
 
+type ToolCommandPayload = {
+  command?: unknown;
+};
+
+function getCommandLine(raw: unknown): string | undefined {
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  const { command } = raw as ToolCommandPayload;
+  if (!Array.isArray(command)) {
+    return undefined;
+  }
+  const parts = command.filter((part) => typeof part === "string") as string[];
+  if (!parts.length) {
+    return undefined;
+  }
+  return parts.join(" ");
+}
+
+export function getSubAgentInvocationId(
+  toolCallUpdate: ToolCallUpdate | ToolCall,
+): string | undefined {
+  const meta = toolCallUpdate._meta;
+  if (!meta || typeof meta !== "object") {
+    return undefined;
+  }
+  const { subAgentInvocationId } = meta as { subAgentInvocationId?: unknown };
+  return typeof subAgentInvocationId === "string"
+    ? subAgentInvocationId
+    : undefined;
+}
+
+export function isTerminalToolInvocation(
+  toolCallUpdate: ToolCallUpdate | ToolCall,
+  info: ToolInfo,
+): boolean {
+  return (
+    info.kind === "execute" ||
+    Boolean(getCommandLine(toolCallUpdate.rawInput)) ||
+    Boolean(getCommandLine(toolCallUpdate.rawOutput))
+  );
+}
+
+export function buildTerminalToolInvocationData(
+  toolCallUpdate: ToolCallUpdate | ToolCall,
+  info: ToolInfo,
+): vscode.ChatTerminalToolInvocationData | undefined {
+  const commandLine =
+    getCommandLine(toolCallUpdate.rawInput) ||
+    getCommandLine(toolCallUpdate.rawOutput) ||
+    info.input;
+  if (!commandLine) {
+    return undefined;
+  }
+
+  const data: vscode.ChatTerminalToolInvocationData = {
+    language: DEFAULT_TERMINAL_LANGUAGE,
+    commandLine: {
+      original: commandLine,
+    },
+  };
+
+  if (info.output) {
+    data.output = { text: info.output };
+  }
+
+  if (
+    toolCallUpdate.rawOutput &&
+    typeof toolCallUpdate.rawOutput === "object"
+  ) {
+    const rawOutput = toolCallUpdate.rawOutput as {
+      exitCode?: unknown;
+      duration?: unknown;
+    };
+    const exitCode =
+      typeof rawOutput.exitCode === "number" ? rawOutput.exitCode : undefined;
+    const duration =
+      typeof rawOutput.duration === "number" ? rawOutput.duration : undefined;
+    if (exitCode !== undefined || duration !== undefined) {
+      data.state = { exitCode, duration };
+    }
+  }
+
+  return data;
+}
+
+export function buildMcpToolInvocationData(
+  info: ToolInfo,
+): vscode.ChatMcpToolInvocationData | undefined {
+  if (!info.input && !info.output) {
+    return undefined;
+  }
+
+  const output: vscode.McpToolInvocationContentData[] = [];
+  if (info.output) {
+    const encoder = new TextEncoder();
+    output.push({
+      data: encoder.encode(info.output),
+      mimeType: "text/plain",
+    });
+  }
+
+  return {
+    input: info.input ?? "",
+    output,
+  };
+}
+
 export function buildDiffMarkdown(
   path: string,
   oldText: string | undefined,
@@ -186,4 +296,69 @@ export function toInlineDiff(oldText: string, newText: string): string {
   }
 
   return diffLines.join("\n");
+}
+
+export function normalizeDiffPath(path: string): string {
+  const normalized = path.replace(/^file:\/\//, "");
+  return normalized.startsWith("/") ? normalized.slice(1) : normalized;
+}
+
+export function resolveDiffUri(
+  path: string,
+  workspaceRoot: vscode.Uri | undefined,
+): vscode.Uri {
+  if (path.includes("://")) {
+    return vscode.Uri.parse(path);
+  }
+  if (workspaceRoot) {
+    return vscode.Uri.joinPath(workspaceRoot, normalizeDiffPath(path));
+  }
+  return vscode.Uri.file(normalizeDiffPath(path));
+}
+
+export function buildDiffStats(
+  oldText: string | undefined,
+  newText: string | undefined,
+): { added: number; removed: number } {
+  const normalize = (text: string): string => text.replace(/\r\n?/g, "\n");
+  const original = normalize(oldText ?? "");
+  const updated = normalize(newText ?? "");
+  if (original === updated) {
+    return { added: 0, removed: 0 };
+  }
+  const oldLines = original.split("\n");
+  const newLines = updated.split("\n");
+  const m = oldLines.length;
+  const n = newLines.length;
+  const lcs = Array.from({ length: m + 1 }, () =>
+    new Array<number>(n + 1).fill(0),
+  );
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      if (oldLines[i] === newLines[j]) {
+        lcs[i][j] = lcs[i + 1][j + 1] + 1;
+      } else {
+        lcs[i][j] = Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+      }
+    }
+  }
+  let i = 0;
+  let j = 0;
+  let removed = 0;
+  let added = 0;
+  while (i < m && j < n) {
+    if (oldLines[i] === newLines[j]) {
+      i++;
+      j++;
+    } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+      removed++;
+      i++;
+    } else {
+      added++;
+      j++;
+    }
+  }
+  removed += m - i;
+  added += n - j;
+  return { added, removed };
 }
