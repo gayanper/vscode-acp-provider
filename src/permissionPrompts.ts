@@ -175,7 +175,7 @@ export class PermissionPromptManager
     pending.resolve(response);
   }
 
-  private renderChatPrompt(pending: PendingPrompt): void {
+  private async renderChatPrompt(pending: PendingPrompt): Promise<void> {
     this.logger.trace(JSON.stringify(pending));
 
     const context = pending.context;
@@ -183,38 +183,89 @@ export class PermissionPromptManager
       return;
     }
 
-    const toolCall = pending.request.toolCall;
-    const message = new vscode.MarkdownString(
-      toolCall.title ??
-        `\`\`\`json\n ${JSON.stringify(toolCall.rawInput)}\n\`\`\``,
-    );
-    context.response.markdown("## Permission Required");
-    context.response.markdown(message);
-    const commandId = createPermissionResolveCommandId(context.agentId);
-    for (const option of pending.request.options) {
-      context.response.button({
-        title: this.optionLabel(option),
-        command: commandId,
-        arguments: [
-          {
-            promptId: pending.promptId,
-            sessionId: pending.sessionId,
-            optionId: option.optionId,
-          } satisfies PermissionResolutionPayload,
-        ],
+    try {
+      const toolCall = pending.request.toolCall as {
+        title?: string;
+        kind?: string;
+        rawInput?: unknown;
+      };
+      const toolName = this.getToolName(toolCall);
+      const command = this.formatCommand(toolCall.rawInput);
+      const questionId = `${pending.promptId}-permission`;
+      const question = new vscode.ChatQuestion(
+        questionId,
+        vscode.ChatQuestionType.SingleSelect,
+        `Permission required: ${toolName}`,
+        {
+          message: new vscode.MarkdownString(
+            `Execute: ${this.wrapInlineCode(command)}`,
+          ),
+          options: pending.request.options.map((option) => ({
+            id: option.optionId,
+            label: this.optionLabel(option),
+            value: option.optionId,
+          })),
+          allowFreeformInput: false,
+        },
+      );
+
+      const answers = await context.response.questionCarousel(
+        [question],
+        false,
+      );
+      if (!answers || this.pendingPrompt?.promptId !== pending.promptId) {
+        this.resolvePrompt(pending.promptId, {
+          outcome: { outcome: "cancelled" },
+        });
+        this.emitResultMessage(pending, "Permission denied.");
+        return;
+      }
+
+      const answer = answers[questionId];
+      let selection: string | undefined = undefined;
+      if (typeof answer === "string") {
+        selection = answer;
+      } else if (
+        typeof answer === "object" &&
+        answer &&
+        "selectedValue" in answer &&
+        typeof answer.selectedValue === "string"
+      ) {
+        selection = answer.selectedValue;
+      }
+
+      if (!selection) {
+        this.resolvePrompt(pending.promptId, {
+          outcome: { outcome: "cancelled" },
+        });
+        this.emitResultMessage(pending, "Permission denied.");
+        return;
+      }
+
+      const option = pending.optionsById.get(selection);
+      if (!option) {
+        this.resolvePrompt(pending.promptId, {
+          outcome: { outcome: "cancelled" },
+        });
+        this.emitResultMessage(pending, "Permission denied.");
+        return;
+      }
+
+      this.resolvePrompt(pending.promptId, {
+        outcome: { outcome: "selected", optionId: option.optionId },
+      });
+      this.emitResultMessage(
+        pending,
+        `Permission granted: ${this.optionLabel(option)}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to render permission prompt: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      this.resolvePrompt(pending.promptId, {
+        outcome: { outcome: "cancelled" },
       });
     }
-
-    context.response.button({
-      title: "Deny",
-      command: commandId,
-      arguments: [
-        {
-          promptId: pending.promptId,
-          sessionId: pending.sessionId,
-        } satisfies PermissionResolutionPayload,
-      ],
-    });
   }
 
   private async promptViaModal(
@@ -247,12 +298,58 @@ export class PermissionPromptManager
     return `${title} (${kind})`;
   }
 
+  private getToolName(toolCall: { title?: string; kind?: string }): string {
+    return toolCall.title ?? toolCall.kind ?? "Tool";
+  }
+
+  private formatCommand(rawInput: unknown): string {
+    let command = "unknown";
+    if (typeof rawInput === "string") {
+      command = rawInput;
+    } else if (rawInput && typeof rawInput === "object") {
+      const maybeCommand = (rawInput as { command?: unknown }).command;
+      if (typeof maybeCommand === "string") {
+        command = maybeCommand;
+      } else if (Array.isArray(maybeCommand)) {
+        command = maybeCommand.join(" ");
+      } else {
+        const serialized = JSON.stringify(rawInput);
+        if (serialized) {
+          command = serialized;
+        }
+      }
+    } else if (rawInput !== undefined) {
+      command = String(rawInput);
+    }
+
+    const singleLine = command.replace(/\s+/g, " ").trim();
+    return this.truncate(singleLine, 100);
+  }
+
+  private wrapInlineCode(value: string): string {
+    if (value.length > 300) {
+      value = value.substring(0, 300).concat("...");
+    }
+    return "`" + value + "`";
+  }
+
+  private truncate(value: string, maxLength: number): string {
+    if (value.length <= maxLength) {
+      return value;
+    }
+    if (maxLength <= 3) {
+      return value.slice(0, maxLength);
+    }
+    return `${value.slice(0, maxLength - 3)}...`;
+  }
+
   private optionLabel(option: PermissionOption): string {
     return option.name ?? option.optionId;
   }
 
   private emitResultMessage(pending: PendingPrompt, message: string): void {
     pending.context?.response.markdown(message);
+    pending.context?.response.markdown("\n\n");
   }
 
   private createPromptId(): string {
