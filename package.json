@@ -8,7 +8,7 @@
     "url": "https://github.com/gayanper/vscode-acp-provider.git"
   },
   "engines": {
-    "vscode": "^1.108.1"
+    "vscode": "^1.109.0"
   },
   "type": "commonjs",
   "categories": [
@@ -227,8 +227,8 @@
     "install-dts": "npx @vscode/dts 1.108.1"
   },
   "devDependencies": {
-    "@types/node": "^25.0.1",
-    "@types/vscode": "^1.108.1",
+    "@types/node": "^25.2.1",
+    "@types/vscode": "^1.109.0",
     "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.27.1",
     "prettier": "3.7.4",
