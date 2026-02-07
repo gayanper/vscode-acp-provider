@@ -21,6 +21,21 @@ import { createDiffUri, setDiffContent } from "./diffContentProvider";
 import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
 
+/**
+ * Check if a title matches known question tool call patterns (case-insensitive).
+ * Matches patterns with or without separators (-, _) in any case:
+ * - "question", "Question", "QUESTION"
+ * - "ask_user_question", "ask-user-question", "askUserQuestion", "AskUserQuestion"
+ */
+function isQuestionToolCall(title: string | undefined): boolean {
+  if (!title) {
+    return false;
+  }
+  // Normalize by converting to lowercase and removing hyphens and underscores
+  const normalized = title.toLowerCase().replace(/[-_]/g, "");
+  return normalized === "question" || normalized === "askuserquestion";
+}
+
 export class AcpChatParticipant extends DisposableBase {
   requestHandler: vscode.ChatRequestHandler = this.handleRequest.bind(this);
   onDidReceiveFeedback: vscode.Event<vscode.ChatResultFeedback> =
@@ -92,23 +107,25 @@ export class AcpChatParticipant extends DisposableBase {
       response.progress("Working...");
     }, 100);
 
-    const subscription = session.client.onSessionUpdate(async (notification) => {
-      clearTimeout(timeout);
-      if (
-        !session.acpSessionId ||
-        notification.sessionId !== session.acpSessionId
-      ) {
-        return;
-      }
-      if (token.isCancellationRequested) {
-        return;
-      }
-      await this.renderSessionUpdate(notification, response);
+    const subscription = session.client.onSessionUpdate(
+      async (notification) => {
+        clearTimeout(timeout);
+        if (
+          !session.acpSessionId ||
+          notification.sessionId !== session.acpSessionId
+        ) {
+          return;
+        }
+        if (token.isCancellationRequested) {
+          return;
+        }
+        await this.renderSessionUpdate(notification, response);
 
-      timeout = setTimeout(() => {
-        response.progress("Working...");
-      }, 5000);
-    });
+        timeout = setTimeout(() => {
+          response.progress("Working...");
+        }, 5000);
+      },
+    );
 
     const cancellationRegistration = token.onCancellationRequested(() => {
       cancellation.cancel();
@@ -362,7 +379,7 @@ export class AcpChatParticipant extends DisposableBase {
         );
 
         // Track question tool calls
-        if (info.kind === "other" && update.title === "question") {
+        if (info.kind === "other" && isQuestionToolCall(update.title)) {
           this.questionToolCalls.add(update.toolCallId);
         }
 
