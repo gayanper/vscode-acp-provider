@@ -237,6 +237,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.12.0"
+    "@agentclientprotocol/sdk": "0.14.1"
   }
 }
