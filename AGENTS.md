@@ -2,7 +2,7 @@
 
 ## Code Explorations
 
-- ALWAYS USE subagents for code explorations
+- ALWAYS USE subagents for code explorations when they are AVAILABLE
 
 ## Setup commands
 
