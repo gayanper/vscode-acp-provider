@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Code Explorations
+
+- ALWAYS USE subagents for code explorations
+
 ## Setup commands
 
 - Install deps: `npm install`
