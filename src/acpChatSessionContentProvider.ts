@@ -113,7 +113,7 @@ export class AcpChatSessionContentProvider
     updates: ReadonlyArray<vscode.ChatSessionOptionUpdate>,
     token: vscode.CancellationToken,
   ): Promise<void> {
-    const session = await this.sessionManager.getActive(resource);
+    const session = this.sessionManager.getActive(resource);
     if (!session) {
       this.logChannel.warn(
         `No session found to handle provideHandleOptionsChange for ${resource.toString()}`,
