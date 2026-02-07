@@ -82,6 +82,7 @@ export function createTestAcpClientWithScenarios(
   addToolCallSuccess(config);
   addToolCallDiffPreview(config);
   addResumeSessionScenario(config);
+  addAskQuestionScenario(config);
 
   // create a new prompt which lists these scenarios when typed "list"
   config.promptPrograms?.push({
@@ -521,4 +522,177 @@ function addResumeSessionScenario(config: PreprogrammedConfig) {
       },
     },
   ];
+}
+
+function addAskQuestionScenario(config: PreprogrammedConfig) {
+  config.promptPrograms?.push({
+    promptText: "ask question",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "I need to ask you a question to proceed.",
+            },
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "question_tool_call_1",
+            title: "question",
+            status: "in_progress",
+            kind: "other",
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "question_tool_call_1",
+            status: "in_progress",
+            kind: "other",
+            title: "question",
+            rawInput: {
+              questions: [
+                {
+                  header: "Choose option",
+                  question: "Which approach should I use?",
+                  multiSelect: false,
+                  options: [
+                    {
+                      label: "Option A",
+                      description: "Proceed with the standard flow",
+                    },
+                    {
+                      label: "Option B",
+                      description: "Use the alternative flow",
+                    },
+                    {
+                      label: "Option C",
+                      description: "Pause and ask again later",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      ],
+    },
+  });
+
+  // Add response handlers for each option
+  const optionAResponse = [
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "tool_call_update" as const,
+        toolCallId: "question_tool_call_1",
+        status: "completed" as const,
+        rawOutput: {
+          answers: {
+            "0": "Option A",
+          },
+        },
+      },
+    },
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "agent_message_chunk" as const,
+        content: {
+          type: "text" as const,
+          text: "Great! I'll proceed with the standard flow as you selected Option A.",
+        },
+      },
+    },
+  ];
+
+  const optionBResponse = [
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "tool_call_update" as const,
+        toolCallId: "question_tool_call_1",
+        status: "completed" as const,
+        rawOutput: {
+          answers: {
+            "0": "Option B",
+          },
+        },
+      },
+    },
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "agent_message_chunk" as const,
+        content: {
+          type: "text" as const,
+          text: "Understood! I'll use the alternative flow as you selected Option B.",
+        },
+      },
+    },
+  ];
+
+  const optionCResponse = [
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "tool_call_update" as const,
+        toolCallId: "question_tool_call_1",
+        status: "completed" as const,
+        rawOutput: {
+          answers: {
+            "0": "Option C",
+          },
+        },
+      },
+    },
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "agent_message_chunk" as const,
+        content: {
+          type: "text" as const,
+          text: "No problem! I'll pause here and we can continue later as you selected Option C.",
+        },
+      },
+    },
+  ];
+
+  // Register answer handlers
+  config.promptPrograms?.push({
+    promptText: "answer:Option A",
+    notifications: {
+      prompt: optionAResponse,
+    },
+    response: {
+      stopReason: "end_turn",
+    },
+  });
+
+  config.promptPrograms?.push({
+    promptText: "answer:Option B",
+    notifications: {
+      prompt: optionBResponse,
+    },
+    response: {
+      stopReason: "end_turn",
+    },
+  });
+
+  config.promptPrograms?.push({
+    promptText: "answer:Option C",
+    notifications: {
+      prompt: optionCResponse,
+    },
+    response: {
+      stopReason: "end_turn",
+    },
+  });
 }

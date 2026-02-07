@@ -2,23 +2,24 @@
 import {
   ContentBlock,
   SessionNotification,
-  ToolCall,
   ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 import { AcpSessionManager, Session } from "./acpSessionManager";
-import { DisposableBase } from "./disposables";
-import { PermissionPromptManager } from "./permissionPrompts";
 import {
   buildDiffStats,
   buildMcpToolInvocationData,
+  buildQuestionCarouselPart,
   buildTerminalToolInvocationData,
   getSubAgentInvocationId,
   getToolInfo,
   isTerminalToolInvocation,
+  parseQuestions,
   resolveDiffUri,
 } from "./chatRenderingUtils";
 import { createDiffUri, setDiffContent } from "./diffContentProvider";
+import { DisposableBase } from "./disposables";
+import { PermissionPromptManager } from "./permissionPrompts";
 
 export class AcpChatParticipant extends DisposableBase {
   requestHandler: vscode.ChatRequestHandler = this.handleRequest.bind(this);
@@ -42,6 +43,8 @@ export class AcpChatParticipant extends DisposableBase {
       subAgentInvocationId?: string;
     }
   >();
+  private readonly questionToolCalls = new Set<string>();
+  private currentSession: Session | null = null;
 
   private async handleRequest(
     request: vscode.ChatRequest,
@@ -80,6 +83,7 @@ export class AcpChatParticipant extends DisposableBase {
     }
     session.markAsInProgress();
     this.cancelPendingRequest(session);
+    this.currentSession = session;
 
     const cancellation = new vscode.CancellationTokenSource();
     session.pendingRequest = { cancellation };
@@ -88,7 +92,7 @@ export class AcpChatParticipant extends DisposableBase {
       response.progress("Working...");
     }, 100);
 
-    const subscription = session.client.onSessionUpdate((notification) => {
+    const subscription = session.client.onSessionUpdate(async (notification) => {
       clearTimeout(timeout);
       if (
         !session.acpSessionId ||
@@ -99,7 +103,7 @@ export class AcpChatParticipant extends DisposableBase {
       if (token.isCancellationRequested) {
         return;
       }
-      this.renderSessionUpdate(notification, response);
+      await this.renderSessionUpdate(notification, response);
 
       timeout = setTimeout(() => {
         response.progress("Working...");
@@ -165,6 +169,7 @@ export class AcpChatParticipant extends DisposableBase {
     } finally {
       session.pendingRequest?.permissionContext?.dispose();
       session.pendingRequest = undefined;
+      this.currentSession = null;
       cancellationRegistration.dispose();
       subscription.dispose();
     }
@@ -298,10 +303,10 @@ export class AcpChatParticipant extends DisposableBase {
     return "prompt" in turn;
   }
 
-  private renderSessionUpdate(
+  private async renderSessionUpdate(
     notification: SessionNotification,
     response: vscode.ChatResponseStream,
-  ): void {
+  ): Promise<void> {
     this.logger.trace(JSON.stringify(notification));
     const update = notification.update;
 
@@ -356,12 +361,43 @@ export class AcpChatParticipant extends DisposableBase {
           streamData,
         );
 
+        // Track question tool calls
+        if (info.kind === "other" && update.title === "question") {
+          this.questionToolCalls.add(update.toolCallId);
+        }
+
         break;
       }
       case "tool_call_update": {
         const tracked = this.toolInvocations.get(update.toolCallId);
         const info = getToolInfo(update);
         if (update.status !== "completed" && update.status !== "failed") {
+          // Handle question tool calls using questionCarousel
+          if (this.questionToolCalls.has(update.toolCallId)) {
+            const questions = parseQuestions(update);
+            if (questions) {
+              try {
+                const answers = await response.questionCarousel(
+                  questions,
+                  false,
+                );
+
+                // Send answers back to the agent
+                if (this.currentSession?.acpSessionId && answers) {
+                  await this.currentSession.client.sendQuestionAnswers(
+                    this.currentSession.acpSessionId,
+                    update.toolCallId,
+                    answers,
+                  );
+                }
+              } catch (error) {
+                this.logger.error(
+                  `Failed to handle question carousel: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+            }
+          }
+
           if (info.input) {
             if (tracked) {
               tracked.invocationMessage = info.input;
@@ -372,6 +408,8 @@ export class AcpChatParticipant extends DisposableBase {
           }
           break;
         }
+
+        this.questionToolCalls.delete(update.toolCallId);
 
         const toolName = info.name || tracked?.name || "Tool";
         const part = new vscode.ChatToolInvocationPart(

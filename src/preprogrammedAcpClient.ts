@@ -100,6 +100,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
   private readonly modes?: SessionModeState;
   private sessionCreated = false;
   private currentProgram?: PreprogrammedPromptProgram;
+  private pendingQuestionResolve?: () => void;
 
   constructor(private readonly config: PreprogrammedConfig) {
     super();
@@ -227,7 +228,21 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
         throw new Error("Permission request was not completed");
       }
     } else {
-      await this.streamNotificationPlan(program.notifications, "prompt");
+      // Check if this program contains a question
+      const hasQuestion = this.programHasQuestion(program);
+
+      if (hasQuestion) {
+        // Stream the question notifications
+        await this.streamNotificationPlan(program.notifications, "prompt");
+
+        // Wait for the question to be answered
+        await new Promise<void>((resolve) => {
+          this.pendingQuestionResolve = resolve;
+        });
+      } else {
+        // Normal flow without questions
+        await this.streamNotificationPlan(program.notifications, "prompt");
+      }
     }
     return program.response ?? DEFAULT_STOP_RESPONSE;
   }
@@ -252,6 +267,38 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
 
   async changeModel(_sessionId: string, _modelId: string): Promise<void> {
     return;
+  }
+
+  async sendQuestionAnswers(
+    sessionId: string,
+    toolCallId: string,
+    answers: Record<string, unknown>,
+  ): Promise<void> {
+    if (sessionId !== this.sessionId) {
+      throw new Error(`Unknown session ${sessionId}`);
+    }
+
+    // Extract the first answer value to determine which answer handler to trigger
+    const answerValues = Object.values(answers);
+    if (answerValues.length === 0) {
+      return;
+    }
+
+    const selectedAnswer = answerValues[0] as string;
+    const answerPromptKey = `answer:${selectedAnswer}`;
+    const normalizedKey = this.normalizePrompt(answerPromptKey);
+
+    const answerProgram = this.promptPrograms.get(normalizedKey);
+    if (answerProgram) {
+      // Stream the answer response notifications
+      await this.streamNotificationPlan(answerProgram.notifications, "prompt");
+    }
+
+    // Resolve the pending question promise to continue the turn
+    if (this.pendingQuestionResolve) {
+      this.pendingQuestionResolve();
+      this.pendingQuestionResolve = undefined;
+    }
   }
 
   dispose(): void {
@@ -307,6 +354,40 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
       return notification;
     }
     return { ...notification, sessionId: this.sessionId };
+  }
+
+  private programHasQuestion(program: PreprogrammedPromptProgram): boolean {
+    if (!program.notifications) {
+      return false;
+    }
+
+    // Check if notifications is an array or a plan
+    let notificationList: NotificationSequence | undefined;
+    if (Array.isArray(program.notifications)) {
+      notificationList = program.notifications;
+    } else {
+      notificationList = (program.notifications as PromptNotificationPlan)
+        .prompt;
+    }
+
+    if (!notificationList) {
+      return false;
+    }
+
+    // Check if any notification contains a question in rawInput
+    return notificationList.some((notification: SessionNotification) => {
+      const update = notification.update;
+      if (
+        update.sessionUpdate === "tool_call_update" &&
+        "rawInput" in update &&
+        update.rawInput &&
+        typeof update.rawInput === "object" &&
+        "questions" in update.rawInput
+      ) {
+        return true;
+      }
+      return false;
+    });
   }
 
   private normalizePrompt(input: string): string {

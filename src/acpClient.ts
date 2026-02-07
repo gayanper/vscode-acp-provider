@@ -74,6 +74,11 @@ export interface AcpClient extends Client, vscode.Disposable {
   cancel(sessionId: string): Promise<void>;
   changeMode(sessionId: string, modeId: string): Promise<void>;
   changeModel(sessionId: string, modelId: string): Promise<void>;
+  sendQuestionAnswers(
+    sessionId: string,
+    toolCallId: string,
+    answers: Record<string, unknown>,
+  ): Promise<void>;
 }
 
 export function createAcpClient(
@@ -283,6 +288,31 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
       sessionId,
     };
     await this.connection.unstable_setSessionModel(request);
+  }
+
+  async sendQuestionAnswers(
+    sessionId: string,
+    toolCallId: string,
+    answers: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.connection) {
+      this.logChannel.warn(
+        "Cannot send question answers: connection not ready",
+      );
+      return;
+    }
+
+    try {
+      await this.connection.extNotification("questionAnswers", {
+        sessionId,
+        toolCallId,
+        answers,
+      });
+    } catch (error) {
+      this.logChannel.error(
+        `Failed to send question answers: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   async dispose(): Promise<void> {

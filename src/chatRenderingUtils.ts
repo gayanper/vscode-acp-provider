@@ -11,6 +11,21 @@ export type ToolInfo = {
   output?: string;
 };
 
+type ToolQuestionPayloadOption = {
+  label?: unknown;
+  description?: unknown;
+};
+
+type ToolQuestionPayload = {
+  question?: unknown;
+  header?: unknown;
+  options?: unknown;
+};
+
+type ToolQuestionPayloadContainer = {
+  questions?: unknown;
+};
+
 export function getToolInfo(
   toolCallUpdate: ToolCallUpdate | ToolCall,
 ): ToolInfo {
@@ -203,6 +218,117 @@ export function buildMcpToolInvocationData(
     input: info.input ?? "",
     output,
   };
+}
+
+function getQuestionPayload(raw: unknown): ToolQuestionPayload[] | undefined {
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+  const { questions } = raw as ToolQuestionPayloadContainer;
+  if (!Array.isArray(questions)) {
+    return undefined;
+  }
+  return questions.filter(
+    (question) => question && typeof question === "object",
+  ) as ToolQuestionPayload[] | undefined;
+}
+
+function formatQuestionOptionLabel(
+  label: string,
+  description: string | undefined,
+): string {
+  if (!description) {
+    return label;
+  }
+  return `${label} — ${description}`;
+}
+
+/**
+ * Parses question data from a tool call update and builds ChatQuestion objects.
+ * @param toolCallUpdate The tool call update containing question data
+ * @returns Array of ChatQuestion objects, or undefined if no valid questions found
+ */
+export function parseQuestions(
+  toolCallUpdate: ToolCallUpdate | ToolCall,
+): vscode.ChatQuestion[] | undefined {
+  const rawQuestions =
+    getQuestionPayload(toolCallUpdate.rawInput) ??
+    getQuestionPayload(toolCallUpdate.rawOutput);
+  if (!rawQuestions || rawQuestions.length === 0) {
+    return undefined;
+  }
+
+  const questions: vscode.ChatQuestion[] = [];
+  rawQuestions.forEach((questionPayload, index) => {
+    const header =
+      typeof questionPayload.header === "string"
+        ? questionPayload.header.trim()
+        : "";
+    const questionText =
+      typeof questionPayload.question === "string"
+        ? questionPayload.question.trim()
+        : "";
+    const title = header || questionText || "Question";
+    const message = header && questionText ? questionText : undefined;
+
+    const rawOptions = Array.isArray(questionPayload.options)
+      ? (questionPayload.options as ToolQuestionPayloadOption[])
+      : [];
+    const options: vscode.ChatQuestionOption[] = [];
+    rawOptions.forEach((option, optionIndex) => {
+      const label = typeof option.label === "string" ? option.label.trim() : "";
+      if (!label) {
+        return;
+      }
+      const description =
+        typeof option.description === "string"
+          ? option.description.trim()
+          : undefined;
+      options.push({
+        id: `${toolCallUpdate.toolCallId}-q${index}-o${optionIndex}`,
+        label: formatQuestionOptionLabel(label, description),
+        value: label,
+      });
+    });
+
+    const hasOptions = options.length > 0;
+    const allowFreeformInput = hasOptions
+      ? options.some((option) =>
+          typeof option.value === "string"
+            ? option.value.toLowerCase() === "other"
+            : false,
+        )
+      : true;
+    const questionType = hasOptions
+      ? vscode.ChatQuestionType.SingleSelect
+      : vscode.ChatQuestionType.Text;
+
+    questions.push(
+      new vscode.ChatQuestion(
+        `${toolCallUpdate.toolCallId}-q${index}`,
+        questionType,
+        title,
+        {
+          ...(message ? { message } : {}),
+          ...(hasOptions ? { options } : {}),
+          allowFreeformInput,
+        },
+      ),
+    );
+  });
+
+  return questions.length > 0 ? questions : undefined;
+}
+
+export function buildQuestionCarouselPart(
+  toolCallUpdate: ToolCallUpdate | ToolCall,
+): vscode.ChatResponseQuestionCarouselPart | undefined {
+  const questions = parseQuestions(toolCallUpdate);
+  if (!questions) {
+    return undefined;
+  }
+
+  return new vscode.ChatResponseQuestionCarouselPart(questions, true);
 }
 
 export function buildDiffMarkdown(

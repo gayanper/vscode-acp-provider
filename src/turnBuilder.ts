@@ -8,6 +8,7 @@ import {
 import * as vscode from "vscode";
 import {
   buildDiffStats,
+  buildQuestionCarouselPart,
   buildMcpToolInvocationData,
   buildTerminalToolInvocationData,
   getSubAgentInvocationId,
@@ -35,6 +36,7 @@ export class TurnBuilder {
       invocationMessage?: string;
     }
   >();
+  private readonly questionToolCalls = new Set<string>();
 
   constructor(participantId: string) {
     this.participantId = participantId;
@@ -165,12 +167,21 @@ export class TurnBuilder {
 
     const info = getToolInfo(update);
     if (update.status !== "completed" && update.status !== "failed") {
+      if (!this.questionToolCalls.has(update.toolCallId)) {
+        const questionPart = buildQuestionCarouselPart(update);
+        if (questionPart) {
+          this.currentAgentParts.push(questionPart);
+          this.questionToolCalls.add(update.toolCallId);
+        }
+      }
       if (info.input) {
         part.invocationMessage = info.input;
         tracked.invocationMessage = info.input;
       }
       return;
     }
+
+    this.questionToolCalls.delete(update.toolCallId);
 
     part.isConfirmed = update.status === "completed";
     part.isError = update.status === "failed" ? true : false;
