@@ -11,9 +11,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "nodenext",
-    "types": [
-      "node"
-    ]
+    "types": ["node"]
   },
   "include": ["src/**/*", "vscode.proposed.*.d.ts"],
   "exclude": ["node_modules", ".vscode-test"]
