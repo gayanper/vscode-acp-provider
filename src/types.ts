@@ -30,6 +30,7 @@ export interface AcpAgentConfigurationEntry {
 
 export const VscodeToolNames = {
   VscodeGetConfirmation: "vscode_get_confirmation",
+  TodoList: "manage_todo_list",
 };
 
 export const VscodeSessionOptions = {

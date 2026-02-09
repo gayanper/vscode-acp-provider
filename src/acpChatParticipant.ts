@@ -20,6 +20,7 @@ import {
 import { createDiffUri, setDiffContent } from "./diffContentProvider";
 import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
+import { VscodeToolNames } from "./types";
 
 /**
  * Check if a title matches known question tool call patterns (case-insensitive).
@@ -60,6 +61,9 @@ export class AcpChatParticipant extends DisposableBase {
   >();
   private readonly questionToolCalls = new Set<string>();
   private currentSession: Session | null = null;
+  private currentToolInvocationToken:
+    | vscode.ChatParticipantToolToken
+    | undefined;
 
   private async handleRequest(
     request: vscode.ChatRequest,
@@ -99,6 +103,7 @@ export class AcpChatParticipant extends DisposableBase {
     session.markAsInProgress();
     this.cancelPendingRequest(session);
     this.currentSession = session;
+    this.currentToolInvocationToken = request.toolInvocationToken;
 
     const cancellation = new vscode.CancellationTokenSource();
     session.pendingRequest = { cancellation };
@@ -187,6 +192,7 @@ export class AcpChatParticipant extends DisposableBase {
       session.pendingRequest?.permissionContext?.dispose();
       session.pendingRequest = undefined;
       this.currentSession = null;
+      this.currentToolInvocationToken = undefined;
       cancellationRegistration.dispose();
       subscription.dispose();
     }
@@ -462,15 +468,7 @@ export class AcpChatParticipant extends DisposableBase {
         break;
       }
       case "plan": {
-        if (update.entries.length > 0) {
-          response.markdown("## Plan\n");
-          update.entries.forEach((entry, index) => {
-            const entryText = entry.content;
-            response.markdown(
-              `-  [${entry.status === "completed" ? "x" : " "}] ${entryText}\n`,
-            );
-          });
-        }
+        await this.renderPlanUpdate(update.entries, response);
         break;
       }
       case "available_commands_update": {
@@ -538,6 +536,63 @@ export class AcpChatParticipant extends DisposableBase {
       return content.text;
     }
     return undefined;
+  }
+
+  private async renderPlanUpdate(
+    entries: Array<{
+      content: string;
+      status?: string;
+      priority?: string;
+    }>,
+    response: vscode.ChatResponseStream,
+  ): Promise<void> {
+    if (!entries.length) {
+      return;
+    }
+
+    const toolName = VscodeToolNames.TodoList;
+    const toolAvailable = vscode.lm.tools.some(
+      (tool) => tool.name === toolName,
+    );
+    if (toolAvailable && this.currentToolInvocationToken) {
+      const todoList = entries.map((entry, index) => ({
+        id: index + 1,
+        title: entry.content,
+        status: this.mapPlanStatus(entry.status),
+      }));
+      try {
+        await vscode.lm.invokeTool(toolName, {
+          toolInvocationToken: this.currentToolInvocationToken,
+          input: { todoList },
+        });
+        return;
+      } catch (error) {
+        this.logger.warn(
+          `Failed to render TodoList tool for plan update: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    // fallback to markdown
+    response.markdown("## Plan\n");
+    for (const entry of entries) {
+      const checkbox = entry.status === "completed" ? "x" : " ";
+      response.markdown(`-  [${checkbox}] ${entry.content}\n`);
+    }
+  }
+
+  private mapPlanStatus(
+    status?: string,
+  ): "not-started" | "in-progress" | "completed" {
+    switch (status) {
+      case "completed":
+        return "completed";
+      case "in_progress":
+        return "in-progress";
+      case "pending":
+      default:
+        return "not-started";
+    }
   }
 
   private handleToolContents(

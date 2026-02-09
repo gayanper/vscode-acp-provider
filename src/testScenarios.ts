@@ -81,6 +81,7 @@ export function createTestAcpClientWithScenarios(
   addToolCallFailure(config);
   addToolCallSuccess(config);
   addToolCallDiffPreview(config);
+  addPlanUpdateScenario(config);
   addResumeSessionScenario(config);
   addAskQuestionScenario(config);
 
@@ -360,6 +361,54 @@ function addToolCallDiffPreview(config: PreprogrammedConfig) {
               type: "text",
               text: "I've added a new greeting export to src/index.ts.",
             },
+          },
+        },
+      ],
+    },
+  });
+}
+
+function addPlanUpdateScenario(config: PreprogrammedConfig) {
+  config.promptPrograms?.push({
+    promptText: "show plan",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "Drafting a plan for the request...",
+            },
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "plan",
+            entries: [
+              {
+                content: "Review current requirements",
+                priority: "high",
+                status: "completed",
+              },
+              {
+                content: "Identify impacted modules",
+                priority: "medium",
+                status: "in_progress",
+              },
+              {
+                content: "Draft implementation steps",
+                priority: "medium",
+                status: "pending",
+              },
+              {
+                content: "Validate with a quick test run",
+                priority: "low",
+                status: "pending",
+              },
+            ],
           },
         },
       ],
