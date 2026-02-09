@@ -42,7 +42,7 @@
         "name": "opencode",
         "type": "acp-opencode",
         "canDelegate": true,
-        "displayName": "OpenCode Agent [ACP]",
+        "displayName": "OpenCode [ACP]",
         "description": "Chat sessions backed by the OpenCode ACP agent",
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.opencode.enabled"
@@ -51,7 +51,7 @@
         "name": "codex",
         "type": "acp-codex",
         "canDelegate": true,
-        "displayName": "Codex Agent [ACP]",
+        "displayName": "Codex [ACP]",
         "description": "Chat sessions backed by the Codex ACP agent",
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.codex.enabled"
@@ -60,7 +60,7 @@
         "name": "cagent",
         "type": "acp-cagent",
         "canDelegate": true,
-        "displayName": "Cagent Agent [ACP]",
+        "displayName": "Cagent [ACP]",
         "description": "Chat sessions backed by the Cagent ACP agent",
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.cagent.enabled"
@@ -69,7 +69,7 @@
         "name": "geminicli",
         "type": "acp-geminicli",
         "canDelegate": true,
-        "displayName": "Gemini CLI Agent [ACP]",
+        "displayName": "Gemini [ACP]",
         "description": "Chat sessions backed by the Gemini CLI ACP agent",
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.geminicli.enabled"
