@@ -45,21 +45,7 @@
         "displayName": "OpenCode Agent [ACP]",
         "description": "Chat sessions backed by the OpenCode ACP agent",
         "icon": "$(hubot)",
-        "when": "config.acpClient.agents.opencode.enabled",
-        "commands": [
-          {
-            "name": "undo",
-            "description": "Undo the changes"
-          },
-          {
-            "name": "redo",
-            "description": "Redo the changes"
-          },
-          {
-            "name": "compact",
-            "description": "Compact the current session"
-          }
-        ]
+        "when": "config.acpClient.agents.opencode.enabled"
       },
       {
         "name": "codex",
@@ -87,6 +73,15 @@
         "description": "Chat sessions backed by the Gemini CLI ACP agent",
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.geminicli.enabled"
+      },
+      {
+        "name": "claude",
+        "type": "acp-claude",
+        "canDelegate": true,
+        "displayName": "Claude Code [ACP]",
+        "description": "Chat sessions backed by the Claude Code ACP agent",
+        "icon": "$(hubot)",
+        "when": "config.acpClient.agents.claude.enabled"
       }
     ],
     "configuration": {
@@ -99,7 +94,8 @@
               "opencode",
               "codex",
               "cagent",
-              "geminicli"
+              "geminicli",
+              "claude"
             ]
           },
           "additionalProperties": {
