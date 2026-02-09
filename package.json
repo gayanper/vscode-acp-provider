@@ -82,6 +82,15 @@
         "description": "Chat sessions backed by the Claude Code ACP agent",
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.claude.enabled"
+      },
+      {
+        "name": "vibe",
+        "type": "acp-vibe",
+        "canDelegate": true,
+        "displayName": "Mistral Vibe [ACP]",
+        "description": "Chat sessions backed by the Mistral Vibe ACP agent",
+        "icon": "$(hubot)",
+        "when": "config.acpClient.agents.vibe.enabled"
       }
     ],
     "configuration": {
@@ -95,7 +104,8 @@
               "codex",
               "cagent",
               "geminicli",
-              "claude"
+              "claude",
+              "vibe"
             ]
           },
           "additionalProperties": {
