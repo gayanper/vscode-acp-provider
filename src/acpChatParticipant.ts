@@ -333,9 +333,7 @@ export class AcpChatParticipant extends DisposableBase {
         if (text) {
           response.markdown(text);
         } else {
-          response.warning(
-            "Received a non-text message from the agent that cannot be rendered.",
-          );
+          this.logger.trace("The last update did not had a valid text content");
         }
         break;
       }
