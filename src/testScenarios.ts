@@ -161,6 +161,19 @@ function addAskForPermissionAndGetWeather(config: PreprogrammedConfig) {
           "curl https://api.weather.com/v3/wx/conditions/current",
         ],
       },
+      toolCall: {
+        toolCallId: "fetch_weather_tool_call_1",
+        title: "Fetch Weather Data",
+        kind: "fetch",
+        rawInput: {
+          command: [
+            "/bin/sh",
+            "-c",
+            "curl https://api.weather.com/v3/wx/conditions/current",
+          ],
+        },
+        status: "pending",
+      },
     },
     notifications: {
       permissionAllowed: [
@@ -168,6 +181,23 @@ function addAskForPermissionAndGetWeather(config: PreprogrammedConfig) {
           sessionId: "test-session-id",
           update: {
             sessionUpdate: "tool_call",
+            toolCallId: "fetch_weather_tool_call_1",
+            title: "Fetch Weather Data",
+            kind: "fetch",
+            rawInput: {
+              command: [
+                "/bin/sh",
+                "-c",
+                "curl https://api.weather.com/v3/wx/conditions/current",
+              ],
+            },
+            status: "in_progress",
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call_update",
             toolCallId: "fetch_weather_tool_call_1",
             title: "Fetch Weather Data",
             rawInput: {

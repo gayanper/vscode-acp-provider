@@ -525,6 +525,7 @@ export class AcpChatParticipant extends DisposableBase {
       session: sessionState,
       response,
       token,
+      toolInvocationToken: this.currentToolInvocationToken,
     });
   }
 

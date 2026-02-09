@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import { AcpPermissionHandler } from "./acpClient";
 import { Session } from "./acpSessionManager";
 import { DisposableBase } from "./disposables";
+import { VscodeToolNames } from "./types";
 
 export interface PermissionResolutionPayload {
   readonly promptId: string;
@@ -19,6 +20,7 @@ export interface PermissionPromptContext {
   readonly session: Session;
   readonly response: vscode.ChatResponseStream;
   readonly token?: vscode.CancellationToken;
+  readonly toolInvocationToken?: vscode.ChatParticipantToolToken;
 }
 
 interface SessionChatContext {
@@ -27,6 +29,7 @@ interface SessionChatContext {
   readonly agentLabel: string;
   readonly agentId: string;
   readonly token?: vscode.CancellationToken;
+  readonly toolInvocationToken?: vscode.ChatParticipantToolToken;
 }
 
 interface PendingPrompt {
@@ -71,6 +74,7 @@ export class PermissionPromptManager
       agentLabel: context.session.agent.label,
       agentId: context.session.agent.id,
       token: context.token,
+      toolInvocationToken: context.toolInvocationToken,
     };
 
     this.sessionContext = chatContext;
@@ -94,7 +98,10 @@ export class PermissionPromptManager
     request: RequestPermissionRequest,
   ): Promise<RequestPermissionResponse> {
     const context = this.sessionContext;
-    if (!context) {
+    if (!context || !context.toolInvocationToken) {
+      return this.promptViaModal(request);
+    }
+    if (!this.isConfirmationToolAvailable()) {
       return this.promptViaModal(request);
     }
 
@@ -123,8 +130,246 @@ export class PermissionPromptManager
       }
 
       this.pendingPrompt = pending;
-      this.renderChatPrompt(pending);
+      this.invokeConfirmationTool(pending).catch(async (error) => {
+        this.logger.warn(
+          `Failed to invoke confirmation tool: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        if (this.pendingPrompt?.promptId !== pending.promptId) {
+          return;
+        }
+        this.pendingPrompt = null;
+        pending.cancellationListener?.dispose();
+        try {
+          const response = await this.promptViaModal(request);
+          resolve(response);
+        } catch (modalError) {
+          reject(modalError);
+        }
+      });
     });
+  }
+
+  private async invokeConfirmationTool(pending: PendingPrompt): Promise<void> {
+    const context = pending.context;
+    if (!context?.toolInvocationToken) {
+      const response = await this.promptViaModal(pending.request);
+      this.resolvePrompt(pending.promptId, response);
+      return;
+    }
+
+    const toolCall = pending.request.toolCall as {
+      title?: string;
+      kind?: string;
+      rawInput?: unknown;
+    };
+    const toolName = this.getToolName(toolCall);
+    const command = this.formatCommand(toolCall.rawInput, 240);
+    const hasCommand = command !== "unknown";
+    const title = `Permission required: ${toolName}`;
+    const message = hasCommand
+      ? `Execute: ${command}`
+      : this.describeToolCall(pending.request);
+    const input: {
+      title: string;
+      message: string;
+      confirmationType: "basic" | "terminal";
+      terminalCommand?: string;
+    } = {
+      title,
+      message,
+      confirmationType: "basic",
+    };
+    if (hasCommand) {
+      input.terminalCommand = command;
+    }
+
+    // Pass undefined to avoid creating a chat tool entry for confirmations.
+    const result = await vscode.lm.invokeTool(
+      VscodeToolNames.VscodeGetConfirmation,
+      {
+        input: input,
+        toolInvocationToken: context.toolInvocationToken,
+        chatStreamToolCallId: pending.request.toolCall.toolCallId,
+      },
+      context.token,
+    );
+
+    if (this.pendingPrompt?.promptId !== pending.promptId) {
+      return;
+    }
+
+    const decision = this.parseConfirmationResult(result);
+    if (decision?.confirmed) {
+      const option = this.pickAllowOption(pending);
+      if (!option) {
+        this.resolvePrompt(pending.promptId, {
+          outcome: { outcome: "cancelled" },
+        });
+        this.emitResultMessage(pending, "Permission denied.");
+        return;
+      }
+      this.resolvePrompt(pending.promptId, {
+        outcome: { outcome: "selected", optionId: option.optionId },
+      });
+      this.emitResultMessage(
+        pending,
+        `Permission granted: ${this.optionLabel(option)}`,
+      );
+      return;
+    }
+
+    if (decision?.label) {
+      const option = this.pickOptionByLabel(pending, decision.label);
+      if (option) {
+        this.resolvePrompt(pending.promptId, {
+          outcome: { outcome: "selected", optionId: option.optionId },
+        });
+        this.emitResultMessage(
+          pending,
+          `Permission granted: ${this.optionLabel(option)}`,
+        );
+        return;
+      }
+    }
+
+    if (decision?.confirmed === false) {
+      const denyOption = this.pickDenyOption(pending);
+      if (denyOption) {
+        this.resolvePrompt(pending.promptId, {
+          outcome: { outcome: "selected", optionId: denyOption.optionId },
+        });
+      } else {
+        this.resolvePrompt(pending.promptId, {
+          outcome: { outcome: "cancelled" },
+        });
+      }
+      this.emitResultMessage(pending, "Permission denied.");
+      return;
+    }
+
+    this.resolvePrompt(pending.promptId, {
+      outcome: { outcome: "cancelled" },
+    });
+    this.emitResultMessage(pending, "Permission denied.");
+  }
+
+  private parseConfirmationResult(
+    result: unknown,
+  ): { confirmed: boolean; label?: string } | undefined {
+    if (typeof result === "boolean") {
+      return { confirmed: result };
+    }
+
+    if (!result || typeof result !== "object") {
+      if (typeof result === "string") {
+        return { confirmed: result === "yes", label: result };
+      }
+      return undefined;
+    }
+
+    const maybe = result as {
+      confirmed?: unknown;
+      result?: unknown;
+      value?: unknown;
+      output?: unknown;
+      response?: unknown;
+    };
+
+    if (typeof maybe.confirmed === "boolean") {
+      return { confirmed: maybe.confirmed };
+    }
+
+    const text = this.extractConfirmationText(result);
+    if (typeof text === "string") {
+      return { confirmed: text === "yes", label: text };
+    }
+
+    const nested = maybe.result ?? maybe.output ?? maybe.response ?? undefined;
+    if (nested && typeof nested === "object") {
+      const nestedText = this.extractConfirmationText(nested);
+      if (typeof nestedText === "string") {
+        return { confirmed: nestedText === "yes", label: nestedText };
+      }
+    }
+
+    return undefined;
+  }
+
+  private extractConfirmationText(result: unknown): string | undefined {
+    if (typeof result === "string") {
+      return result;
+    }
+
+    if (!result || typeof result !== "object") {
+      return undefined;
+    }
+
+    const maybe = result as {
+      content?: unknown;
+      value?: unknown;
+      text?: unknown;
+    };
+
+    if (typeof maybe.value === "string") {
+      return maybe.value;
+    }
+
+    if (typeof maybe.text === "string") {
+      return maybe.text;
+    }
+
+    if (Array.isArray(maybe.content)) {
+      for (const entry of maybe.content) {
+        if (typeof entry === "string") {
+          return entry;
+        }
+        if (entry && typeof entry === "object") {
+          const value = (entry as { value?: unknown }).value;
+          if (typeof value === "string") {
+            return value;
+          }
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  private pickAllowOption(
+    pending: PendingPrompt,
+  ): PermissionOption | undefined {
+    const allowOption = pending.optionsById.get("allow");
+    if (allowOption) {
+      return allowOption;
+    }
+    return pending.request.options[0];
+  }
+
+  private pickDenyOption(pending: PendingPrompt): PermissionOption | undefined {
+    return pending.optionsById.get("deny");
+  }
+
+  private pickOptionByLabel(
+    pending: PendingPrompt,
+    label: string,
+  ): PermissionOption | undefined {
+    const normalizedLabel = label.trim().toLowerCase();
+    for (const option of pending.request.options) {
+      const normalizedName = this.optionLabel(option).trim().toLowerCase();
+      if (normalizedName === normalizedLabel) {
+        return option;
+      }
+      if (option.optionId.trim().toLowerCase() === normalizedLabel) {
+        return option;
+      }
+    }
+    return undefined;
+  }
+
+  private isConfirmationToolAvailable(): boolean {
+    return vscode.lm.tools.some(
+      (tool) => tool.name === VscodeToolNames.VscodeGetConfirmation,
+    );
   }
 
   resolveFromCommand(payload: PermissionResolutionPayload): void {
@@ -302,7 +547,7 @@ export class PermissionPromptManager
     return toolCall.title ?? toolCall.kind ?? "Tool";
   }
 
-  private formatCommand(rawInput: unknown): string {
+  private formatCommand(rawInput: unknown, maxLength = 100): string {
     let command = "unknown";
     if (typeof rawInput === "string") {
       command = rawInput;
@@ -323,7 +568,7 @@ export class PermissionPromptManager
     }
 
     const singleLine = command.replace(/\s+/g, " ").trim();
-    return this.truncate(singleLine, 100);
+    return this.truncate(singleLine, maxLength);
   }
 
   private wrapInlineCode(value: string): string {

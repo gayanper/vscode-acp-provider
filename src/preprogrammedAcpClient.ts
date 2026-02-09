@@ -12,6 +12,7 @@ import {
   SessionModelState,
   SessionModeState,
   SessionNotification,
+  ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 import { AgentRegistryEntry } from "./agentRegistry";
@@ -37,6 +38,7 @@ export interface PreprogrammedPermissionConfig {
   readonly rawInput: {
     readonly command: string[];
   };
+  readonly toolCall?: Partial<ToolCallUpdate>;
 }
 
 export interface PreprogrammedPromptProgram {
@@ -196,6 +198,13 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
 
     if (this.currentProgram.permission) {
       const permission = this.currentProgram.permission;
+      const toolCall: ToolCallUpdate = {
+        ...permission.toolCall,
+        toolCallId:
+          permission.toolCall?.toolCallId ?? "preprogrammed-tool-call",
+        title: permission.toolCall?.title ?? permission.title,
+        rawInput: permission.toolCall?.rawInput ?? permission.rawInput,
+      };
       const response = await this.requestPermission({
         options: [
           {
@@ -210,11 +219,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
           },
         ],
         sessionId: this.sessionId,
-        toolCall: {
-          toolCallId: "preprogrammed-tool-call",
-          title: permission.title,
-          rawInput: permission.rawInput,
-        },
+        toolCall,
       });
 
       if (response.outcome.outcome === "selected") {
