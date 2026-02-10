@@ -37,10 +37,10 @@ export interface AcpPermissionHandler {
 
 const CLIENT_CAPABILITIES: ClientCapabilities = {
   fs: {
-    readTextFile: true,
-    writeTextFile: true,
+    readTextFile: false,
+    writeTextFile: false,
   },
-  terminal: true,
+  terminal: false,
 };
 
 const CLIENT_INFO = {
