@@ -18,8 +18,6 @@ export type AcpMcpServerConfiguration = AcpStdioMcpServerConfiguration;
 
 export interface AcpAgentConfigurationEntry {
   readonly label?: string;
-  readonly description?: string;
-  readonly icon?: string;
   readonly command: string;
   readonly args?: readonly string[];
   readonly cwd?: string;

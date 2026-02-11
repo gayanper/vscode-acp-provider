@@ -145,7 +145,7 @@
               "command"
             ],
             "properties": {
-              "title": {
+              "label": {
                 "type": "string",
                 "description": "Display label shown in the chat UI"
               },
