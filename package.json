@@ -45,7 +45,10 @@
         "displayName": "OpenCode [ACP]",
         "description": "Chat sessions backed by the OpenCode ACP agent",
         "icon": "$(hubot)",
-        "when": "config.acpClient.agents.opencode.enabled"
+        "when": "config.acpClient.agents.opencode.enabled",
+        "capabilities": {
+          "supportsFileAttachments": true
+        }
       },
       {
         "name": "codex",
@@ -54,7 +57,10 @@
         "displayName": "Codex [ACP]",
         "description": "Chat sessions backed by the Codex ACP agent",
         "icon": "$(hubot)",
-        "when": "config.acpClient.agents.codex.enabled"
+        "when": "config.acpClient.agents.codex.enabled",
+        "capabilities": {
+          "supportsFileAttachments": true
+        }
       },
       {
         "name": "cagent",
@@ -63,7 +69,10 @@
         "displayName": "Cagent [ACP]",
         "description": "Chat sessions backed by the Cagent ACP agent",
         "icon": "$(hubot)",
-        "when": "config.acpClient.agents.cagent.enabled"
+        "when": "config.acpClient.agents.cagent.enabled",
+        "capabilities": {
+          "supportsFileAttachments": true
+        }
       },
       {
         "name": "geminicli",
@@ -72,7 +81,10 @@
         "displayName": "Gemini [ACP]",
         "description": "Chat sessions backed by the Gemini CLI ACP agent",
         "icon": "$(hubot)",
-        "when": "config.acpClient.agents.geminicli.enabled"
+        "when": "config.acpClient.agents.geminicli.enabled",
+        "capabilities": {
+          "supportsFileAttachments": true
+        }
       },
       {
         "name": "claude",
@@ -81,7 +93,10 @@
         "displayName": "Claude Code [ACP]",
         "description": "Chat sessions backed by the Claude Code ACP agent",
         "icon": "$(hubot)",
-        "when": "config.acpClient.agents.claude.enabled"
+        "when": "config.acpClient.agents.claude.enabled",
+        "capabilities": {
+          "supportsFileAttachments": true
+        }
       },
       {
         "name": "vibe",
@@ -90,7 +105,10 @@
         "displayName": "Mistral Vibe [ACP]",
         "description": "Chat sessions backed by the Mistral Vibe ACP agent",
         "icon": "$(hubot)",
-        "when": "config.acpClient.agents.vibe.enabled"
+        "when": "config.acpClient.agents.vibe.enabled",
+        "capabilities": {
+          "supportsFileAttachments": true
+        }
       }
     ],
     "configuration": {
