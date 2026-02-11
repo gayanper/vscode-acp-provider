@@ -109,6 +109,18 @@
         "capabilities": {
           "supportsFileAttachments": true
         }
+      },
+      {
+        "name": "copilot",
+        "type": "acp-copilot",
+        "canDelegate": true,
+        "displayName": "Copilot [ACP]",
+        "description": "Chat sessions backed by the Copilot ACP agent",
+        "icon": "$(hubot)",
+        "when": "config.acpClient.agents.copilot.enabled",
+        "capabilities": {
+          "supportsFileAttachments": true
+        }
       }
     ],
     "configuration": {
@@ -123,7 +135,8 @@
               "cagent",
               "geminicli",
               "claude",
-              "vibe"
+              "vibe",
+              "copilot"
             ]
           },
           "additionalProperties": {
