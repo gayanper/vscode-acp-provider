@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { ToolCall, ToolCallUpdate } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
+import * as path from "path";
 
 const DEFAULT_TERMINAL_LANGUAGE = "shell";
 
@@ -424,22 +425,86 @@ export function toInlineDiff(oldText: string, newText: string): string {
   return diffLines.join("\n");
 }
 
-export function normalizeDiffPath(path: string): string {
-  const normalized = path.replace(/^file:\/\//, "");
-  return normalized.startsWith("/") ? normalized.slice(1) : normalized;
+const FILE_SCHEME_REGEX = /^file:\/+?/i;
+const SCHEME_REGEX = /^[a-zA-Z][a-zA-Z0-9+.-]*:/;
+const WINDOWS_DRIVE_REGEX = /^[a-zA-Z]:[\\/]/;
+
+export function normalizeDiffPath(input: string): string {
+  // Strip an explicit file: scheme if present, but preserve absolute/relative form
+  return input ? input.replace(FILE_SCHEME_REGEX, "") : input;
+}
+
+function isWindowsDrivePath(value: string): boolean {
+  return WINDOWS_DRIVE_REGEX.test(value);
+}
+
+function splitPathSegments(value: string): string[] {
+  return path.normalize(value).split(path.sep).filter(Boolean);
+}
+
+function getWorkspaceRelativePath(
+  workspaceRoot: vscode.Uri | undefined,
+  absPath: string,
+): string | undefined {
+  if (!workspaceRoot?.fsPath) {
+    return undefined;
+  }
+  const relative = path.relative(workspaceRoot.fsPath, absPath);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    return undefined;
+  }
+  return relative;
+}
+
+function toWorkspaceUriOrFile(
+  absPath: string,
+  workspaceRoot: vscode.Uri | undefined,
+): vscode.Uri {
+  const relative = getWorkspaceRelativePath(workspaceRoot, absPath);
+  if (relative && workspaceRoot) {
+    return vscode.Uri.joinPath(workspaceRoot, ...splitPathSegments(relative));
+  }
+  return vscode.Uri.file(absPath);
 }
 
 export function resolveDiffUri(
-  path: string,
+  inputPath: string,
   workspaceRoot: vscode.Uri | undefined,
 ): vscode.Uri {
-  if (path.includes("://")) {
-    return vscode.Uri.parse(path);
+  const raw = (inputPath ?? "").trim();
+
+  // If it has an explicit scheme (file:, http:, vscode-remote:, etc.) and is not
+  // a Windows drive letter, parse as a URI.
+  if (SCHEME_REGEX.test(raw) && !isWindowsDrivePath(raw)) {
+    try {
+      const parsed = vscode.Uri.parse(raw);
+      if (parsed.scheme !== "file") {
+        return parsed;
+      }
+      if (parsed.fsPath) {
+        return toWorkspaceUriOrFile(parsed.fsPath, workspaceRoot);
+      }
+      return parsed;
+    } catch {
+      // fall through to other resolution strategies
+    }
   }
+
+  // Remove any leading file: prefix left over and normalize the path string
+  const cleaned = normalizeDiffPath(raw);
+
+  // If the cleaned path is absolute on this platform, treat it as an absolute file path
+  if (path.isAbsolute(cleaned) || isWindowsDrivePath(cleaned)) {
+    return toWorkspaceUriOrFile(path.normalize(cleaned), workspaceRoot);
+  }
+
+  // Otherwise treat as a workspace-relative path when a workspace root is available
   if (workspaceRoot) {
-    return vscode.Uri.joinPath(workspaceRoot, normalizeDiffPath(path));
+    return vscode.Uri.joinPath(workspaceRoot, ...splitPathSegments(cleaned));
   }
-  return vscode.Uri.file(normalizeDiffPath(path));
+
+  // Last resort: resolve relative to the current working directory
+  return vscode.Uri.file(path.resolve(cleaned));
 }
 
 export function buildDiffStats(
