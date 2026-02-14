@@ -14,7 +14,7 @@ import {
   getSubAgentInvocationId,
   getToolInfo,
   isTerminalToolInvocation,
-  resolveDiffUri,
+  resolveUri,
 } from "./chatRenderingUtils";
 import { createDiffUri, setDiffContent } from "./diffContentProvider";
 
@@ -225,7 +225,7 @@ export class TurnBuilder {
       const isDeletion =
         hasOriginal &&
         (content.newText === "" || content.newText === undefined);
-      const fileUri = resolveDiffUri(content.path, workspaceRoot);
+      const fileUri = resolveUri(content.path, workspaceRoot);
       const originalUri = hasOriginal
         ? createDiffUri({
             side: "original",

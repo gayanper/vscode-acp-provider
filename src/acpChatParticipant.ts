@@ -3,6 +3,7 @@ import {
   ContentBlock,
   SessionNotification,
   ToolCallUpdate,
+  type ToolCall,
 } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 import { AcpSessionManager, Session } from "./acpSessionManager";
@@ -15,12 +16,17 @@ import {
   getToolInfo,
   isTerminalToolInvocation,
   parseQuestions,
-  resolveDiffUri,
+  resolveUri,
+  type ToolInfo,
 } from "./chatRenderingUtils";
 import { createDiffUri, setDiffContent } from "./diffContentProvider";
 import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
-import { VscodeToolNames } from "./types";
+import {
+  currentWorkspaceRoot,
+  ResolvableCallback,
+  VscodeToolNames,
+} from "./types";
 
 /**
  * Check if a title matches known question tool call patterns (case-insensitive).
@@ -64,6 +70,8 @@ export class AcpChatParticipant extends DisposableBase {
   private currentToolInvocationToken:
     | vscode.ChatParticipantToolToken
     | undefined;
+
+  private externalEditorCallbacks = new Map<string, ResolvableCallback[]>();
 
   private async handleRequest(
     request: vscode.ChatRequest,
@@ -387,7 +395,8 @@ export class AcpChatParticipant extends DisposableBase {
           this.questionToolCalls.add(update.toolCallId);
         }
 
-        break;
+        // Track if a file change
+        this.handleFileEditToolCalls(info, update, response);
       }
       case "tool_call_update": {
         const tracked = this.toolInvocations.get(update.toolCallId);
@@ -427,6 +436,7 @@ export class AcpChatParticipant extends DisposableBase {
               partialInput: update.rawInput ?? info.input,
             });
           }
+          this.handleFileEditToolCalls(info, update, response);
           break;
         }
 
@@ -463,7 +473,14 @@ export class AcpChatParticipant extends DisposableBase {
         part.toolSpecificData =
           terminalData ?? buildMcpToolInvocationData(info);
         response.push(part);
-        this.handleToolContents(update, response);
+
+        // Track as external edit, if file change
+        const handled = this.handleFileEditToolCalls(info, update, response);
+        if (!handled) {
+          // fallback to file diffs
+          this.handleDiffToolContents(update, response);
+        }
+
         this.toolInvocations.delete(update.toolCallId);
         break;
       }
@@ -596,7 +613,7 @@ export class AcpChatParticipant extends DisposableBase {
     }
   }
 
-  private handleToolContents(
+  private handleDiffToolContents(
     update: ToolCallUpdate,
     stream: vscode.ChatResponseStream,
   ): void {
@@ -604,7 +621,7 @@ export class AcpChatParticipant extends DisposableBase {
       return;
     }
 
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+    const workspaceRoot = currentWorkspaceRoot();
     const diffEntries: vscode.ChatResponseDiffEntry[] = [];
     let diffIndex = 0;
     for (const content of update.content) {
@@ -619,7 +636,7 @@ export class AcpChatParticipant extends DisposableBase {
       const isDeletion =
         hasOriginal &&
         (content.newText === "" || content.newText === undefined);
-      const fileUri = resolveDiffUri(content.path, workspaceRoot);
+      const fileUri = resolveUri(content.path, workspaceRoot);
       const originalUri = hasOriginal
         ? createDiffUri({
             side: "original",
@@ -672,8 +689,6 @@ export class AcpChatParticipant extends DisposableBase {
 
       diffIndex++;
     }
-
-    // text/workspace edits already render a single change entry.
   }
 
   private getFullTextRange(text: string): vscode.Range {
@@ -689,5 +704,64 @@ export class AcpChatParticipant extends DisposableBase {
       new vscode.Position(0, 0),
       new vscode.Position(lines.length - 1, lastLine.length),
     );
+  }
+
+  private handleFileEditToolCalls(
+    info: ToolInfo,
+    data: ToolCall | ToolCallUpdate,
+    stream: vscode.ChatResponseStream,
+  ): boolean {
+    if (data.status === "pending" || data.status === "in_progress") {
+      if (this.externalEditorCallbacks.has(info.toolCallId)) {
+        return true; // consider it as already handled.
+      }
+
+      switch (info.kind) {
+        case "edit": {
+          if (info.resources) {
+            const callbacks: ResolvableCallback[] = [];
+            info.resources?.forEach((r) => {
+              const callback = new ResolvableCallback();
+              callbacks.push(callback);
+              stream.externalEdit(r, callback.callback);
+            });
+            this.externalEditorCallbacks.set(info.toolCallId, callbacks);
+            return true;
+          }
+          return false;
+        }
+        case "other": {
+          if (
+            data.title === "apply_patch" &&
+            data.rawInput &&
+            typeof data.rawInput === "object" &&
+            "patchText" in data.rawInput
+          ) {
+            const patchText = data.rawInput.patchText as string;
+            const match = patchText.match(/.*:(.+?)(?:\n).*/);
+            if (match) {
+              const filePath = match[1];
+              const resource = resolveUri(filePath, currentWorkspaceRoot());
+              const callback = new ResolvableCallback();
+              stream.externalEdit(resource, () => callback.callback());
+              this.externalEditorCallbacks.set(info.toolCallId, [callback]);
+              return true;
+            }
+          }
+        }
+      }
+      return false;
+    } else {
+      if (this.externalEditorCallbacks.has(info.toolCallId)) {
+        // resolve call callbacks
+        this.externalEditorCallbacks
+          .get(info.toolCallId)
+          ?.forEach((c) => c.resolve());
+        this.externalEditorCallbacks.delete(info.toolCallId);
+
+        return true;
+      }
+    }
+    return false;
   }
 }

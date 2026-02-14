@@ -1,8 +1,11 @@
+import path from "path";
 import { AcpClient, AcpPermissionHandler } from "./acpClient";
 import {
   createPreprogrammedAcpClient,
   PreprogrammedConfig,
 } from "./preprogrammedAcpClient";
+import { currentWorkspaceRoot } from "./types";
+import { appendFileSync, existsSync, writeFile, writeFileSync } from "fs";
 
 export function createTestAcpClientWithScenarios(
   permissionHandler: AcpPermissionHandler,
@@ -80,10 +83,12 @@ export function createTestAcpClientWithScenarios(
   addAskForPermissionAndGetWeather(config);
   addToolCallFailure(config);
   addToolCallSuccess(config);
-  addToolCallDiffPreview(config);
+  addToolCallEditFile(config);
+  addToolCallEditFile(config, true);
   addPlanUpdateScenario(config);
   addResumeSessionScenario(config);
   addAskQuestionScenario(config);
+  addToolCallPatchFile(config);
 
   // create a new prompt which lists these scenarios when typed "list"
   config.promptPrograms?.push({
@@ -347,9 +352,12 @@ function addToolCallSuccess(config: PreprogrammedConfig) {
   });
 }
 
-function addToolCallDiffPreview(config: PreprogrammedConfig) {
+function addToolCallEditFile(
+  config: PreprogrammedConfig,
+  includeLocations: boolean = false,
+) {
   config.promptPrograms?.push({
-    promptText: "update file",
+    promptText: includeLocations ? "edit file" : "update file",
     notifications: {
       prompt: [
         {
@@ -363,6 +371,13 @@ function addToolCallDiffPreview(config: PreprogrammedConfig) {
             },
             kind: "edit",
             status: "in_progress",
+            locations: includeLocations
+              ? [
+                  {
+                    path: "src/index.ts",
+                  },
+                ]
+              : undefined,
           },
         },
         {
@@ -380,6 +395,13 @@ function addToolCallDiffPreview(config: PreprogrammedConfig) {
                   "export const value = 1;\nexport const greeting = 'hello world';\n",
               },
             ],
+            locations: includeLocations
+              ? [
+                  {
+                    path: "src/index.ts",
+                  },
+                ]
+              : undefined,
             status: "completed",
           },
         },
@@ -390,6 +412,98 @@ function addToolCallDiffPreview(config: PreprogrammedConfig) {
             content: {
               type: "text",
               text: "I've added a new greeting export to src/index.ts.",
+            },
+          },
+        },
+      ],
+    },
+  });
+}
+
+function addToolCallPatchFile(config: PreprogrammedConfig) {
+  const fileFqn = path.join(
+    currentWorkspaceRoot()?.fsPath || "./",
+    "src",
+    "patched.md",
+  );
+  const relativePath = path.join("src", "patched.md");
+
+  config.promptPrograms?.push({
+    promptText: "patch file",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "patch_tool_call_1",
+            title: "apply_patch",
+            kind: "other",
+            status: "pending",
+            locations: [],
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "patch_tool_call_1",
+            kind: "other",
+            locations: [],
+            status: "in_progress",
+            title: "apply_patch",
+            rawInput: {
+              patchText: `*** Begin Patch\n*** Add File:${fileFqn}\n+#New Title`,
+            },
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "patch_tool_call_1",
+            kind: "other",
+            rawInput: {
+              patchText: `*** Begin Patch\n*** Add File:${fileFqn}\n+##New Title`,
+            },
+            locations: [],
+            title: "Success. File patched",
+            status: "completed",
+            rawOutput: {
+              output: "Success. File patched",
+              metadata: {
+                diff: "<diff-hunk>",
+                files: [
+                  {
+                    filePath: fileFqn,
+                    relativePath: relativePath,
+                    type: "update",
+                    diff: "<diff-hunk>",
+                    before: "<before text>",
+                    after: "<after text>",
+                    additions: 1,
+                    deletions: 0,
+                  },
+                ],
+                diagnostics: {},
+                truncated: false,
+              },
+            },
+          },
+          execute: async () => {
+            if (!existsSync(fileFqn)) {
+              writeFileSync(fileFqn, "# Title\n");
+            }
+            appendFileSync(fileFqn, "\n## New Title\n");
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "I've added a new heading to patched.md",
             },
           },
         },

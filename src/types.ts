@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
+import * as vscode from "vscode";
+
 export enum AgentType {
   OpenCode = "opencode",
   Codex = "codex",
@@ -37,3 +39,22 @@ export const VscodeSessionOptions = {
   Model: "model",
   Agent: "agent",
 };
+
+export const currentWorkspaceRoot = () =>
+  vscode.workspace.workspaceFolders?.[0]?.uri;
+
+export class ResolvableCallback {
+  private r: ((value: unknown) => void) | undefined;
+
+  callback(): Thenable<unknown> {
+    return new Promise((r) => {
+      this.r = r;
+    });
+  }
+
+  resolve() {
+    if (this.r) {
+      this.r(undefined);
+    }
+  }
+}

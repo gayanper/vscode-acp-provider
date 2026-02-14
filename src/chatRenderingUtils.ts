@@ -1,15 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
-import { ToolCall, ToolCallUpdate } from "@agentclientprotocol/sdk";
+import {
+  ToolCall,
+  ToolCallUpdate,
+  type ToolCallStatus,
+  type ToolKind,
+} from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 import * as path from "path";
+import { currentWorkspaceRoot } from "./types";
 
 const DEFAULT_TERMINAL_LANGUAGE = "shell";
 
 export type ToolInfo = {
+  toolCallId: string;
   name: string;
-  kind: string;
+  kind: ToolKind | "terminal";
   input?: string;
   output?: string;
+  resources?: vscode.Uri[];
 };
 
 type ToolQuestionPayloadOption = {
@@ -31,6 +39,7 @@ export function getToolInfo(
   toolCallUpdate: ToolCallUpdate | ToolCall,
 ): ToolInfo {
   const response: ToolInfo = {
+    toolCallId: toolCallUpdate.toolCallId,
     name: toolCallUpdate.title || "",
     kind: toolCallUpdate.kind || "terminal",
   };
@@ -108,6 +117,15 @@ export function getToolInfo(
           return response.output;
         }, "");
     }
+  }
+
+  // extract locations
+  if (toolCallUpdate.locations) {
+    const workspaceRoot = currentWorkspaceRoot();
+    const resources = toolCallUpdate.locations
+      .map((l) => l.path)
+      .map((p) => resolveUri(p, workspaceRoot));
+    response.resources = resources;
   }
 
   return response;
@@ -467,7 +485,7 @@ function toWorkspaceUriOrFile(
   return vscode.Uri.file(absPath);
 }
 
-export function resolveDiffUri(
+export function resolveUri(
   inputPath: string,
   workspaceRoot: vscode.Uri | undefined,
 ): vscode.Uri {

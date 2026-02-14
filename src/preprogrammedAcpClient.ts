@@ -22,7 +22,9 @@ import { AcpClient, AcpPermissionHandler } from "./acpClient";
 const STREAM_DELAY_MS = 500;
 const DEFAULT_STOP_RESPONSE: PromptResponse = { stopReason: "end_turn" };
 
-type NotificationSequence = ReadonlyArray<SessionNotification>;
+type NotificationSequence = ReadonlyArray<
+  SessionNotification & { execute?: () => Promise<void> }
+>;
 type NotificationPhase = keyof PromptNotificationPlan;
 
 type NotificationSource = NotificationSequence | PromptNotificationPlan;
@@ -349,6 +351,9 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
     for (const notification of notifications) {
       await this.delay(STREAM_DELAY_MS);
       this.onSessionUpdateEmitter.fire(this.ensureSessionId(notification));
+      if (notification.execute) {
+        await notification.execute();
+      }
     }
   }
 
