@@ -154,23 +154,28 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
     cwd: string,
     mcpServers: AgentRegistryEntry["mcpServers"],
   ): Promise<NewSessionResponse> {
-    await this.ensureReady("new_session");
+    try {
+      await this.ensureReady("new_session");
 
-    if (!this.connection) {
-      throw new Error("ACP connection is not ready");
+      if (!this.connection) {
+        throw new Error("ACP connection is not ready");
+      }
+      const request: NewSessionRequest = {
+        cwd,
+        mcpServers: serializeMcpServers(mcpServers),
+      };
+      const response: NewSessionResponse =
+        await this.connection.newSession(request);
+      this.supportedModeState = response.modes || null;
+      this.supportedModelState = response.models || null;
+
+      this._onDidOptionsChanged.fire();
+
+      return response;
+    } catch (error) {
+      this.stopProcess();
+      throw error;
     }
-    const request: NewSessionRequest = {
-      cwd,
-      mcpServers: serializeMcpServers(mcpServers),
-    };
-    const response: NewSessionResponse =
-      await this.connection.newSession(request);
-    this.supportedModeState = response.modes || null;
-    this.supportedModelState = response.models || null;
-
-    this._onDidOptionsChanged.fire();
-
-    return response;
   }
 
   getSupportedModelState(): SessionModelState | null {
@@ -220,6 +225,9 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
         modeId: response.modes?.currentModeId,
         notifications: notifications,
       };
+    } catch (error) {
+      this.stopProcess();
+      throw error;
     } finally {
       subscription.dispose();
     }
