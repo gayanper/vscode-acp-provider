@@ -24,6 +24,7 @@ import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
 import {
   currentWorkspaceRoot,
+  extractReadableErrorMessage,
   ResolvableCallback,
   VscodeToolNames,
 } from "./types";
@@ -192,10 +193,10 @@ export class AcpChatParticipant extends DisposableBase {
         return;
       }
       session.markAsFailed();
-      const message =
-        error instanceof Error ? error.message : String(error ?? "Unknown");
       // Render a Copilot-style error message in chat
-      response.markdown(`> **Error:** ACP request failed. ${message}`);
+      response.markdown(
+        `> **Error:** ACP request failed. ${extractReadableErrorMessage(error)}`,
+      );
     } finally {
       session.pendingRequest?.permissionContext?.dispose();
       session.pendingRequest = undefined;

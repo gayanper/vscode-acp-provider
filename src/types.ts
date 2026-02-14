@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { RequestError } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 
 export enum AgentType {
@@ -58,3 +59,16 @@ export class ResolvableCallback {
     }
   }
 }
+
+export const extractReadableErrorMessage = (error: unknown): string => {
+  if (typeof error === "string") {
+    return error;
+  } else if (typeof error === "object") {
+    if (error instanceof Error) {
+      return error.message;
+    } else if (error instanceof RequestError) {
+      return extractReadableErrorMessage(error.cause);
+    }
+  }
+  return JSON.stringify(error);
+};
