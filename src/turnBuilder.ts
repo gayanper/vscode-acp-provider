@@ -17,6 +17,7 @@ import {
   resolveUri,
 } from "./chatRenderingUtils";
 import { createDiffUri, setDiffContent } from "./diffContentProvider";
+import { currentWorkspaceRoot } from "./types";
 
 /**
  * Builds VS Code chat turns from ACP session notification events.
@@ -122,11 +123,22 @@ export class TurnBuilder {
     if (!text) {
       return;
     }
-
-    const normalized = text.startsWith("User:")
-      ? text.replace(/^User:\s*/, "")
-      : text;
-    this.currentUserMessage += normalized;
+    if (text.startsWith("User:")) {
+      this.currentUserMessage = text.replace(/^User:\s*/, "").trim();
+    } else if (text.startsWith("Reference ")) {
+      const match = text.match(/Reference\s\((.*)\):\s(.*)/);
+      if (match) {
+        const fileUri = resolveUri(match[1], currentWorkspaceRoot());
+        const fileRelative = match[2];
+        if (fileUri) {
+          this.currentUserReferences.push({
+            id: fileRelative,
+            name: fileRelative,
+            value: fileUri,
+          });
+        }
+      }
+    }
   }
 
   private captureAgentMessageChunk(content?: ContentBlock): void {
