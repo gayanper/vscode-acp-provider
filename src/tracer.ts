@@ -17,15 +17,27 @@ export class Tracer {
   private redactLargeContent(
     notification: SessionNotification,
   ): SessionNotification {
-    const update = notification.update;
+    const snCopy = {
+      ...notification,
+    };
+
+    const update = {
+      ...snCopy.update,
+    };
+    snCopy.update = update;
+
     switch (update.sessionUpdate) {
       case "tool_call":
       case "tool_call_update": {
         if (update.content) {
+          const cArrayCopy = [];
           for (const content of update.content) {
-            switch (content.type) {
+            const cCopy = { ...content };
+            cArrayCopy.push(cCopy);
+
+            switch (cCopy.type) {
               case "content": {
-                const value = content.content;
+                const value = cCopy.content;
                 switch (value.type) {
                   case "text": {
                     if (value.text) {
@@ -36,50 +48,55 @@ export class Tracer {
                 break;
               }
               case "diff": {
-                content.newText = content.newText ? REDACTED : content.newText;
-                content.oldText = content.oldText ? REDACTED : content.oldText;
+                cCopy.newText = cCopy.newText ? REDACTED : cCopy.newText;
+                cCopy.oldText = cCopy.oldText ? REDACTED : cCopy.oldText;
                 break;
               }
             }
           }
+          update.content = cArrayCopy;
         }
 
         if (update.rawOutput && this.isObject(update.rawOutput)) {
-          if (this.isCommandPresent(update.rawOutput)) {
+          const rawOutCopy = { ...update.rawOutput };
+          if (this.isCommandPresent(rawOutCopy)) {
             // replace values start index 1
-            update.rawOutput.command = update.rawOutput.command.map((v, i) => {
+            rawOutCopy.command = rawOutCopy.command.map((v, i) => {
               if (i > 0) {
                 return REDACTED;
               }
               return v;
             });
           }
-          if (this.isFormattedOutputPresent(update.rawOutput)) {
-            update.rawOutput.formatted_output = REDACTED;
+          if (this.isFormattedOutputPresent(rawOutCopy)) {
+            rawOutCopy.formatted_output = REDACTED;
           }
-          if (this.isOutputPresent(update.rawOutput)) {
-            update.rawOutput.output = REDACTED;
+          if (this.isOutputPresent(rawOutCopy)) {
+            rawOutCopy.output = REDACTED;
           }
-          if (this.isAggregatedOutputPresent(update.rawOutput)) {
-            update.rawOutput.aggregated_output = REDACTED;
+          if (this.isAggregatedOutputPresent(rawOutCopy)) {
+            rawOutCopy.aggregated_output = REDACTED;
           }
+          update.rawOutput = rawOutCopy;
         }
 
         if (update.rawInput && this.isObject(update.rawInput)) {
-          if (this.isCommandPresent(update.rawInput)) {
+          const rawInputCopy = { ...update.rawInput };
+          if (this.isCommandPresent(rawInputCopy)) {
             // replace values start index 1
-            update.rawInput.command = update.rawInput.command.map((v, i) => {
+            rawInputCopy.command = rawInputCopy.command.map((v, i) => {
               if (i > 0) {
                 return REDACTED;
               }
               return v;
             });
           }
+          update.rawInput = rawInputCopy;
         }
       }
     }
 
-    return notification;
+    return snCopy;
   }
 
   private isObject(input: unknown): input is object {
