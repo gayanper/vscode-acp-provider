@@ -28,6 +28,7 @@ import {
   ResolvableCallback,
   VscodeToolNames,
 } from "./types";
+import { Tracer } from "./tracer";
 
 /**
  * Check if a title matches known question tool call patterns (case-insensitive).
@@ -56,8 +57,10 @@ export class AcpChatParticipant extends DisposableBase {
     readonly agentId: string,
   ) {
     super();
+    this.tracer = new Tracer(logger);
   }
 
+  private readonly tracer: Tracer;
   private readonly toolInvocations = new Map<
     string,
     {
@@ -339,7 +342,7 @@ export class AcpChatParticipant extends DisposableBase {
     notification: SessionNotification,
     response: vscode.ChatResponseStream,
   ): Promise<void> {
-    this.logger.trace(JSON.stringify(notification));
+    this.tracer.trace(notification);
     const update = notification.update;
 
     switch (update.sessionUpdate) {
