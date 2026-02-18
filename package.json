@@ -44,6 +44,16 @@
         "canDelegate": true,
         "displayName": "OpenCode [ACP]",
         "description": "Chat sessions backed by the OpenCode ACP agent",
+        "commands": [
+          {
+            "name": "compact",
+            "description": "Compact the current conversation"
+          },
+          {
+            "name": "new",
+            "description": "Start a new session"
+          }
+        ],
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.opencode.enabled",
         "capabilities": {
@@ -56,6 +66,24 @@
         "canDelegate": true,
         "displayName": "Codex [ACP]",
         "description": "Chat sessions backed by the Codex ACP agent",
+        "commands": [
+          {
+            "name": "compact",
+            "description": "Compact the current conversation"
+          },
+          {
+            "name": "review",
+            "description": "Review code with optional instructions"
+          },
+          {
+            "name": "review-branch",
+            "description": "Review a branch"
+          },
+          {
+            "name": "review-commit",
+            "description": "Review a commit"
+          }
+        ],
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.codex.enabled",
         "capabilities": {
@@ -68,6 +96,7 @@
         "canDelegate": true,
         "displayName": "Cagent [ACP]",
         "description": "Chat sessions backed by the Cagent ACP agent",
+        "commands": [],
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.cagent.enabled",
         "capabilities": {
@@ -80,6 +109,16 @@
         "canDelegate": true,
         "displayName": "Gemini [ACP]",
         "description": "Chat sessions backed by the Gemini CLI ACP agent",
+        "commands": [
+          {
+            "name": "clear",
+            "description": "Clear the current session"
+          },
+          {
+            "name": "compress",
+            "description": "Compress conversation context"
+          }
+        ],
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.geminicli.enabled",
         "capabilities": {
@@ -92,6 +131,20 @@
         "canDelegate": true,
         "displayName": "Claude Code [ACP]",
         "description": "Chat sessions backed by the Claude Code ACP agent",
+        "commands": [
+          {
+            "name": "clear",
+            "description": "Clear the current session"
+          },
+          {
+            "name": "compact",
+            "description": "Compact the current conversation"
+          },
+          {
+            "name": "plan",
+            "description": "Create or manage plans"
+          }
+        ],
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.claude.enabled",
         "capabilities": {
@@ -104,6 +157,7 @@
         "canDelegate": true,
         "displayName": "Mistral Vibe [ACP]",
         "description": "Chat sessions backed by the Mistral Vibe ACP agent",
+        "commands": [],
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.vibe.enabled",
         "capabilities": {
@@ -116,6 +170,28 @@
         "canDelegate": true,
         "displayName": "Copilot [ACP]",
         "description": "Chat sessions backed by the Copilot ACP agent",
+        "commands": [
+          {
+            "name": "clear",
+            "description": "Clear the current session"
+          },
+          {
+            "name": "new",
+            "description": "Clear the current session"
+          },
+          {
+            "name": "compact",
+            "description": "Compact the current conversation"
+          },
+          {
+            "name": "plan",
+            "description": "Create or manage plans"
+          },
+          {
+            "name": "review",
+            "description": "Review changes"
+          }
+        ],
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.copilot.enabled",
         "capabilities": {
