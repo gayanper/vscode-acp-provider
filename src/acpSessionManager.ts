@@ -7,7 +7,12 @@ import { createSessionUri, decodeVscodeResource } from "./chatIdentifiers";
 import { DisposableBase } from "./disposables";
 import { getWorkspaceCwd } from "./permittedPaths";
 import { TurnBuilder } from "./turnBuilder";
-import { SessionModelState, SessionModeState } from "@agentclientprotocol/sdk";
+import {
+  AvailableCommand,
+  SessionModelState,
+  SessionModeState,
+  type SessionNotification,
+} from "@agentclientprotocol/sdk";
 
 export class Session {
   private _status: ChatSessionStatus;
@@ -84,6 +89,7 @@ export interface AcpSessionManager extends vscode.Disposable {
     modified: Session,
   ): Promise<void>;
   getOptions(): Promise<Options>;
+  getAvailableCommands(sessionId: string): AvailableCommand[];
 }
 
 export function createAcpSessionManager(
@@ -114,6 +120,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
   ) {
     super();
     this.client = this._register(clientProvider());
+    this._register(this.client.onSessionUpdate((update) => this.handlePreChatSessionUpdate(update)));
 
     this._register(
       this.client.onDidOptionsChanged(() => {
@@ -149,6 +156,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
 
   private diskSessions: Map<string, DiskSession> | null = null;
   private activeSessions: Map<string, Session> = new Map();
+  private availableCommands: Map<string, AvailableCommand[]> = new Map();
 
   private createSessionUri(sessionId: string): vscode.Uri {
     return createSessionUri(this.agent.id, sessionId);
@@ -304,6 +312,28 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     return { modes, models };
   }
 
+  getAvailableCommands(sessionId: string): AvailableCommand[] {
+    return this.availableCommands.get(sessionId) ?? [];
+  }
+
+  // this handler must handle none-chat session messages
+  private handlePreChatSessionUpdate(
+    notification: SessionNotification,
+  ): void {
+    const update = notification.update;
+    if (update.sessionUpdate === "available_commands_update") {
+      this.logger.info(`Received ${update.availableCommands.length} commands`);
+      this.setAvailableCommands(notification.sessionId, update.availableCommands);
+    }
+  }
+
+  private setAvailableCommands(
+    sessionId: string,
+    commands: AvailableCommand[],
+  ): void {
+    this.availableCommands.set(sessionId, commands);
+  }
+
   private async loadDiskSessionsIfNeeded(
     reload: boolean = false,
   ): Promise<void> {
@@ -321,6 +351,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
   dispose(): void {
     this.activeSessions.clear();
     this.diskSessions?.clear();
+    this.availableCommands.clear();
     this._onDidChangeSession.dispose();
   }
 }

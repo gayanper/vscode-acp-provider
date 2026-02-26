@@ -46,6 +46,10 @@
         "description": "Chat sessions backed by the OpenCode ACP agent",
         "commands": [
           {
+            "name": "list-commands",
+            "description": "List available ACP commands"
+          },
+          {
             "name": "compact",
             "description": "Compact the current conversation"
           },
@@ -67,6 +71,10 @@
         "displayName": "Codex [ACP]",
         "description": "Chat sessions backed by the Codex ACP agent",
         "commands": [
+          {
+            "name": "list-commands",
+            "description": "List available ACP commands"
+          },
           {
             "name": "compact",
             "description": "Compact the current conversation"
@@ -96,7 +104,12 @@
         "canDelegate": true,
         "displayName": "Cagent [ACP]",
         "description": "Chat sessions backed by the Cagent ACP agent",
-        "commands": [],
+        "commands": [
+          {
+            "name": "list-commands",
+            "description": "List available ACP commands"
+          }
+        ],
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.cagent.enabled",
         "capabilities": {
@@ -110,6 +123,10 @@
         "displayName": "Gemini [ACP]",
         "description": "Chat sessions backed by the Gemini CLI ACP agent",
         "commands": [
+          {
+            "name": "list-commands",
+            "description": "List available ACP commands"
+          },
           {
             "name": "clear",
             "description": "Clear the current session"
@@ -132,6 +149,10 @@
         "displayName": "Claude Code [ACP]",
         "description": "Chat sessions backed by the Claude Code ACP agent",
         "commands": [
+          {
+            "name": "list-commands",
+            "description": "List available ACP commands"
+          },
           {
             "name": "clear",
             "description": "Clear the current session"
@@ -157,7 +178,12 @@
         "canDelegate": true,
         "displayName": "Mistral Vibe [ACP]",
         "description": "Chat sessions backed by the Mistral Vibe ACP agent",
-        "commands": [],
+        "commands": [
+          {
+            "name": "list-commands",
+            "description": "List available ACP commands"
+          }
+        ],
         "icon": "$(hubot)",
         "when": "config.acpClient.agents.vibe.enabled",
         "capabilities": {
@@ -171,6 +197,10 @@
         "displayName": "Copilot [ACP]",
         "description": "Chat sessions backed by the Copilot ACP agent",
         "commands": [
+          {
+            "name": "list-commands",
+            "description": "List available ACP commands"
+          },
           {
             "name": "clear",
             "description": "Clear the current session"

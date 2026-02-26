@@ -29,6 +29,8 @@ import {
   VscodeToolNames,
 } from "./types";
 import { Tracer } from "./tracer";
+    
+const LIST_COMMANDS_PROMPT = "/list-commands";
 
 /**
  * Check if a title matches known question tool call patterns (case-insensitive).
@@ -116,6 +118,12 @@ export class AcpChatParticipant extends DisposableBase {
     this.cancelPendingRequest(session);
     this.currentSession = session;
     this.currentToolInvocationToken = request.toolInvocationToken;
+
+    if (request.prompt.trim() === LIST_COMMANDS_PROMPT) {
+      this.renderAvailableCommands(session, response);
+      session.markAsCompleted();
+      return;
+    }
 
     const cancellation = new vscode.CancellationTokenSource();
     session.pendingRequest = { cancellation };
@@ -492,9 +500,6 @@ export class AcpChatParticipant extends DisposableBase {
         await this.renderPlanUpdate(update.entries, response);
         break;
       }
-      case "available_commands_update": {
-        break;
-      }
       case "current_mode_update": {
         break;
       }
@@ -600,6 +605,30 @@ export class AcpChatParticipant extends DisposableBase {
     for (const entry of entries) {
       const checkbox = entry.status === "completed" ? "x" : " ";
       response.markdown(`-  [${checkbox}] ${entry.content}\n`);
+    }
+  }
+
+  private renderAvailableCommands(
+    session: Session,
+    response: vscode.ChatResponseStream,
+  ): void {
+    const commands = this.sessionManager.getAvailableCommands(
+      session.acpSessionId,
+    );
+    if (!commands.length) {
+      response.markdown(
+        "No ACP commands have been reported for this session yet.",
+      );
+      return;
+    }
+
+    response.markdown("## Available ACP commands\n");
+    for (const command of commands) {
+      const hint = command.input?.hint ? ` — ${command.input.hint}` : "";
+      response.markdown("- `/" + command.name + "`" + hint + "\n");
+      if (command.description?.trim()) {
+        response.markdown(`  - ${command.description.trim()}\n`);
+      }
     }
   }
 
