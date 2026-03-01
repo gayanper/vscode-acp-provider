@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 12
+// version: 13
 
 declare module 'vscode' {
 
@@ -110,6 +110,16 @@ declare module 'vscode' {
 		 * Display name of the subagent that is invoking this request.
 		 */
 		readonly subAgentName?: string;
+
+		/**
+		 * The request ID of the parent request that invoked this subagent.
+		 */
+		readonly parentRequestId?: string;
+
+		/**
+		 * Whether any hooks are enabled for this request.
+		 */
+		readonly hasHooksEnabled: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -244,6 +254,8 @@ declare module 'vscode' {
 		provideFileIgnored(uri: Uri, token: CancellationToken): ProviderResult<boolean>;
 	}
 
+	export type PreToolUsePermissionDecision = 'allow' | 'deny' | 'ask';
+
 	export interface LanguageModelToolInvocationOptions<T> {
 		chatRequestId?: string;
 		/** @deprecated Use {@link chatSessionResource} instead */
@@ -255,6 +267,14 @@ declare module 'vscode' {
 		 * Unique ID for the subagent invocation, used to group tool calls from the same subagent run together.
 		 */
 		subAgentInvocationId?: string;
+		/**
+		 * Pre-tool-use hook result, if the hook was already executed by the caller.
+		 */
+		preToolUseResult?: {
+			permissionDecision?: PreToolUsePermissionDecision;
+			permissionDecisionReason?: string;
+			updatedInput?: object;
+		};
 	}
 
 	export interface LanguageModelToolInvocationPrepareOptions<T> {
@@ -336,6 +356,19 @@ declare module 'vscode' {
 
 	export namespace lm {
 		export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
+	}
+
+	// #endregion
+
+	// #region Steering
+
+	export interface ChatContext {
+		/**
+		 * Set to `true` by the editor to request the language model gracefully
+		 * stop after its next opportunity. When set, it's likely that the editor
+		 * will immediately follow up with a new request in the same conversation.
+		 */
+		readonly yieldRequested: boolean;
 	}
 
 	// #endregion

@@ -90,6 +90,7 @@ export interface AcpSessionManager extends vscode.Disposable {
   ): Promise<void>;
   getOptions(): Promise<Options>;
   getAvailableCommands(sessionId: string): AvailableCommand[];
+  closeSession(vscodeResource: vscode.Uri): void;
 }
 
 export function createAcpSessionManager(
@@ -109,24 +110,17 @@ export function createAcpSessionManager(
 }
 
 class SessionManager extends DisposableBase implements AcpSessionManager {
-  private readonly client: AcpClient;
+  private readonly clientFactory: () => AcpClient;
   constructor(
     private readonly sessionDb: SessionDb,
     private readonly agent: AgentRegistryEntry,
     readonly permissionHandler: AcpPermissionHandler,
     private readonly logger: vscode.LogOutputChannel,
-    clientProvider: () => AcpClient = () =>
+    clientFactory: () => AcpClient = () =>
       createAcpClient(agent, permissionHandler, logger),
   ) {
     super();
-    this.client = this._register(clientProvider());
-    this._register(this.client.onSessionUpdate((update) => this.handlePreChatSessionUpdate(update)));
-
-    this._register(
-      this.client.onDidOptionsChanged(() => {
-        this._onDidChangeOptions.fire();
-      }),
-    );
+    this.clientFactory = clientFactory;
 
     this._register(
       this.sessionDb.onDataChanged(async () => {
@@ -157,6 +151,11 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
   private diskSessions: Map<string, DiskSession> | null = null;
   private activeSessions: Map<string, Session> = new Map();
   private availableCommands: Map<string, AvailableCommand[]> = new Map();
+  private readonly sessionSubscriptions = new Map<
+    string,
+    vscode.Disposable[]
+  >();
+  private cachedOptions: Options = { modes: null, models: null };
 
   private createSessionUri(sessionId: string): vscode.Uri {
     return createSessionUri(this.agent.id, sessionId);
@@ -178,14 +177,27 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
           `Creating new untitled session for resource ${vscodeResource.toString()}`,
         );
 
-        const acpSession = await this.client.createSession(
+        const client = this.clientFactory();
+        this.sessionSubscriptions.set(decodedResource.sessionId, [
+          client.onSessionUpdate((update) =>
+            this.handlePreChatSessionUpdate(update),
+          ),
+          client.onDidOptionsChanged(() => this._onDidChangeOptions.fire()),
+        ]);
+
+        const acpSession = await client.createSession(
           getWorkspaceCwd(),
           this.agent.mcpServers,
         );
+        this.cachedOptions = {
+          modes: client.getSupportedModeState(),
+          models: client.getSupportedModelState(),
+        };
+
         const session = new Session(
           this.agent,
           vscodeResource,
-          this.client,
+          client,
           acpSession.sessionId,
           {
             modeId: acpSession.modes?.currentModeId || "",
@@ -214,16 +226,29 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
         this.logger.debug(
           `Session found on disk for resource ${vscodeResource.toString()}`,
         );
-        const response = await this.client.loadSession(
+
+        const client = this.clientFactory();
+        this.sessionSubscriptions.set(decodedResource.sessionId, [
+          client.onSessionUpdate((update) =>
+            this.handlePreChatSessionUpdate(update),
+          ),
+          client.onDidOptionsChanged(() => this._onDidChangeOptions.fire()),
+        ]);
+
+        const response = await client.loadSession(
           existingSession.sessionId,
           existingSession.cwd,
           this.agent.mcpServers,
         );
+        this.cachedOptions = {
+          modes: client.getSupportedModeState(),
+          models: client.getSupportedModelState(),
+        };
 
         const session = new Session(
           this.agent,
           vscodeResource,
-          this.client,
+          client,
           existingSession.sessionId,
           {
             modeId: response.modeId || "",
@@ -307,9 +332,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
   }
 
   async getOptions(): Promise<Options> {
-    const modes = this.client.getSupportedModeState();
-    const models = this.client.getSupportedModelState();
-    return { modes, models };
+    return this.cachedOptions;
   }
 
   getAvailableCommands(sessionId: string): AvailableCommand[] {
@@ -317,13 +340,14 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
   }
 
   // this handler must handle none-chat session messages
-  private handlePreChatSessionUpdate(
-    notification: SessionNotification,
-  ): void {
+  private handlePreChatSessionUpdate(notification: SessionNotification): void {
     const update = notification.update;
     if (update.sessionUpdate === "available_commands_update") {
       this.logger.info(`Received ${update.availableCommands.length} commands`);
-      this.setAvailableCommands(notification.sessionId, update.availableCommands);
+      this.setAvailableCommands(
+        notification.sessionId,
+        update.availableCommands,
+      );
     }
   }
 
@@ -348,10 +372,40 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     }
   }
 
+  private disposeSessionClient(sessionId: string, session: Session): void {
+    session.pendingRequest?.cancellation.cancel();
+    session.pendingRequest?.permissionContext?.dispose();
+    session.pendingRequest = undefined;
+
+    this.sessionSubscriptions.get(sessionId)?.forEach((s) => s.dispose());
+    this.sessionSubscriptions.delete(sessionId);
+
+    session.client.dispose().catch(() => {
+      /* noop — best-effort process kill */
+    });
+  }
+
+  closeSession(vscodeResource: vscode.Uri): void {
+    const decoded = decodeVscodeResource(vscodeResource);
+    const session = this.activeSessions.get(decoded.sessionId);
+    if (!session) {
+      return;
+    }
+
+    this.disposeSessionClient(decoded.sessionId, session);
+    this.activeSessions.delete(decoded.sessionId);
+    this.logger.info(`Closed session and killed process: ${decoded.sessionId}`);
+  }
+
   dispose(): void {
+    for (const [sessionId, session] of this.activeSessions) {
+      this.disposeSessionClient(sessionId, session);
+    }
     this.activeSessions.clear();
+    this.sessionSubscriptions.clear();
     this.diskSessions?.clear();
     this.availableCommands.clear();
     this._onDidChangeSession.dispose();
+    this._onDidChangeOptions.dispose();
   }
 }

@@ -1,11 +1,15 @@
-// SPDX-License-Identifier: Apache-2.0
+/// <reference path="../vscode.proposed.chatParticipantPrivate.d.ts" />
 /// <reference path="../vscode.proposed.chatSessionsProvider.d.ts" />
+// SPDX-License-Identifier: Apache-2.0
 import * as vscode from "vscode";
 import { AcpChatParticipant } from "./acpChatParticipant";
 import { AcpChatSessionContentProvider } from "./acpChatSessionContentProvider";
-import { createAcpSessionManager } from "./acpSessionManager";
+import {
+  AcpSessionManager,
+  createAcpSessionManager,
+} from "./acpSessionManager";
 import { AgentRegistry } from "./agentRegistry";
-import { ACP_CHAT_SCHEME } from "./chatIdentifiers";
+import { ACP_CHAT_SCHEME, getAgentIdFromResource } from "./chatIdentifiers";
 import {
   createPermissionResolveCommandId,
   PermissionPromptManager,
@@ -29,12 +33,26 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(sessionDb);
 
   const agentRegistry = new AgentRegistry();
-  registerAgents({
+  const agentSessionManagers = registerAgents({
     registry: agentRegistry,
     sessionDb,
     outputChannel,
     context,
   });
+
+  // When a chat session is disposed (panel closed or replaced by a new session),
+  // close the corresponding ACP session and kill its backing process.
+  context.subscriptions.push(
+    vscode.chat.onDidDisposeChatSession((sessionUriStr) => {
+      const uri = vscode.Uri.parse(sessionUriStr);
+      const agentId = getAgentIdFromResource(uri);
+      if (!agentId) {
+        return;
+      }
+      agentSessionManagers.get(agentId)?.closeSession(uri);
+      outputChannel.info(`ACP session disposed, process killed: ${sessionUriStr}`);
+    }),
+  );
 
   registerCommands(context, { sessionDb }, outputChannel);
 }
@@ -44,8 +62,9 @@ function registerAgents(params: {
   sessionDb: SessionDb;
   outputChannel: vscode.LogOutputChannel;
   context: vscode.ExtensionContext;
-}): void {
+}): Map<string, AcpSessionManager> {
   const { registry, outputChannel, context } = params;
+  const managers = new Map<string, AcpSessionManager>();
   registry.list().forEach((agent) => {
     const permisionPromptsManager = new PermissionPromptManager(outputChannel);
     context.subscriptions.push(permisionPromptsManager);
@@ -114,7 +133,11 @@ function registerAgents(params: {
         sessionItemProvider,
       ),
     );
+
+    managers.set(agent.id, sessionManager);
   });
+
+  return managers;
 }
 
 export function deactivate(): void {}
