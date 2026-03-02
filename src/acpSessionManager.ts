@@ -76,6 +76,7 @@ export type Options = {
 export interface AcpSessionManager extends vscode.Disposable {
   onDidChangeSession: vscode.Event<{ original: Session; modified: Session }>;
   onDidOptionsChange: vscode.Event<void>;
+  onDidCurrentModeChange: vscode.Event<{ resource: vscode.Uri; modeId: string }>;
 
   createOrGet(vscodeResource: vscode.Uri): Promise<{
     session: Session;
@@ -146,6 +147,11 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
   private readonly _onDidChangeOptions: vscode.EventEmitter<void> =
     new vscode.EventEmitter<void>();
   onDidOptionsChange: vscode.Event<void> = this._onDidChangeOptions.event;
+
+  private readonly _onDidCurrentModeChange: vscode.EventEmitter<{ resource: vscode.Uri; modeId: string }> =
+    new vscode.EventEmitter<{ resource: vscode.Uri; modeId: string }>();
+  onDidCurrentModeChange: vscode.Event<{ resource: vscode.Uri; modeId: string }> =
+    this._onDidCurrentModeChange.event;
   // end event definitions --------------------------------------------------
 
   private diskSessions: Map<string, DiskSession> | null = null;
@@ -348,6 +354,16 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
         notification.sessionId,
         update.availableCommands,
       );
+    } else if (update.sessionUpdate === "current_mode_update") {
+      for (const session of this.activeSessions.values()) {
+        if (session.acpSessionId === notification.sessionId) {
+          this._onDidCurrentModeChange.fire({
+            resource: session.vscodeResource,
+            modeId: update.currentModeId,
+          });
+          break;
+        }
+      }
     }
   }
 
@@ -407,5 +423,6 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     this.availableCommands.clear();
     this._onDidChangeSession.dispose();
     this._onDidChangeOptions.dispose();
+    this._onDidCurrentModeChange.dispose();
   }
 }

@@ -22,6 +22,15 @@ export class AcpChatSessionContentProvider
         this._onDidChangeChatSessionProviderOptions.fire();
       }),
     );
+
+    this._register(
+      sessionManager.onDidCurrentModeChange(({ resource, modeId }) => {
+        this._onDidChangeChatSessionOptions.fire({
+          resource,
+          updates: [{ optionId: VscodeSessionOptions.Mode, value: modeId }],
+        });
+      }),
+    );
   }
 
   // start event definitions --------------------------------------------------

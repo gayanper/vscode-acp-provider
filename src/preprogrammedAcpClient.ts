@@ -101,7 +101,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
   private readonly label: string;
   private cwd: string;
   private readonly models?: SessionModelState;
-  private readonly modes?: SessionModeState;
+  private modes?: SessionModeState;
   private sessionCreated = false;
   private currentProgram?: PreprogrammedPromptProgram;
   private pendingQuestionResolve?: () => void;
@@ -265,6 +265,11 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
   }
 
   async sessionUpdate(notification: SessionNotification): Promise<void> {
+    const update = notification.update;
+    if (update.sessionUpdate === "current_mode_update" && this.modes) {
+      this.modes = { ...this.modes, currentModeId: update.currentModeId };
+      this._onDidOptionsChanged.fire();
+    }
     this.onSessionUpdateEmitter.fire(this.ensureSessionId(notification));
   }
 

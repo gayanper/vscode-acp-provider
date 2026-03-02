@@ -89,6 +89,7 @@ export function createTestAcpClientWithScenarios(
   addResumeSessionScenario(config);
   addAskQuestionScenario(config);
   addToolCallPatchFile(config);
+  addModeSwitchingScenario(config);
 
   // create a new prompt which lists these scenarios when typed "list"
   config.promptPrograms?.push({
@@ -886,6 +887,43 @@ function addAskQuestionScenario(config: PreprogrammedConfig) {
     },
     response: {
       stopReason: "end_turn",
+    },
+  });
+}
+
+function addModeSwitchingScenario(config: PreprogrammedConfig) {
+  config.promptPrograms?.push({
+    promptText: "switch mode",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "I have completed the planning phase. Switching to build mode to start implementation.",
+            },
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "current_mode_update",
+            currentModeId: "build",
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "Now in build mode. Ready to implement.",
+            },
+          },
+        },
+      ],
     },
   });
 }
