@@ -9,6 +9,7 @@ import { getWorkspaceCwd } from "./permittedPaths";
 import { TurnBuilder } from "./turnBuilder";
 import {
   AvailableCommand,
+  SessionConfigOption,
   SessionModelState,
   SessionModeState,
   type SessionNotification,
@@ -71,6 +72,7 @@ export class Session {
 export type Options = {
   modes: SessionModeState | null;
   models: SessionModelState | null;
+  thoughtLevelOptions: SessionConfigOption[] | null;
 };
 
 export interface AcpSessionManager extends vscode.Disposable {
@@ -161,7 +163,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     string,
     vscode.Disposable[]
   >();
-  private cachedOptions: Options = { modes: null, models: null };
+  private cachedOptions: Options = { modes: null, models: null, thoughtLevelOptions: null };
 
   private createSessionUri(sessionId: string): vscode.Uri {
     return createSessionUri(this.agent.id, sessionId);
@@ -188,17 +190,17 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
           client.onSessionUpdate((update) =>
             this.handlePreChatSessionUpdate(update),
           ),
-          client.onDidOptionsChanged(() => this._onDidChangeOptions.fire()),
+          client.onDidOptionsChanged(() => {
+            this.cachedOptions = this.buildOptions(client);
+            this._onDidChangeOptions.fire();
+          }),
         ]);
 
         const acpSession = await client.createSession(
           getWorkspaceCwd(),
           this.agent.mcpServers,
         );
-        this.cachedOptions = {
-          modes: client.getSupportedModeState(),
-          models: client.getSupportedModelState(),
-        };
+        this.cachedOptions = this.buildOptions(client);
 
         const session = new Session(
           this.agent,
@@ -238,7 +240,10 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
           client.onSessionUpdate((update) =>
             this.handlePreChatSessionUpdate(update),
           ),
-          client.onDidOptionsChanged(() => this._onDidChangeOptions.fire()),
+          client.onDidOptionsChanged(() => {
+            this.cachedOptions = this.buildOptions(client);
+            this._onDidChangeOptions.fire();
+          }),
         ]);
 
         const response = await client.loadSession(
@@ -246,10 +251,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
           existingSession.cwd,
           this.agent.mcpServers,
         );
-        this.cachedOptions = {
-          modes: client.getSupportedModeState(),
-          models: client.getSupportedModelState(),
-        };
+        this.cachedOptions = this.buildOptions(client);
 
         const session = new Session(
           this.agent,
@@ -339,6 +341,16 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
 
   async getOptions(): Promise<Options> {
     return this.cachedOptions;
+  }
+
+  private buildOptions(client: AcpClient): Options {
+    return {
+      modes: client.getSupportedModeState(),
+      models: client.getSupportedModelState(),
+      thoughtLevelOptions: client
+        .getConfigOptions()
+        .filter((o) => o.category === "thought_level"),
+    };
   }
 
   getAvailableCommands(sessionId: string): AvailableCommand[] {

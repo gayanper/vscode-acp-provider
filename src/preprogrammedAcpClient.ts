@@ -8,6 +8,7 @@ import {
   PromptResponse,
   RequestPermissionRequest,
   RequestPermissionResponse,
+  SessionConfigOption,
   SessionInfo,
   SessionModelState,
   SessionModeState,
@@ -58,6 +59,9 @@ export interface PreprogrammedSessionConfig {
   readonly label?: string;
   readonly models?: SessionModelState;
   readonly modes?: SessionModeState;
+  readonly configOptions?: SessionConfigOption[];
+  /** Per-model config options. When a model is selected, its config options replace the current ones. */
+  readonly modelConfigOptions?: Record<string, SessionConfigOption[]>;
 }
 
 export interface PreprogrammedConfig {
@@ -104,6 +108,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
   private cwd: string;
   private readonly models?: SessionModelState;
   private modes?: SessionModeState;
+  private configOptions: SessionConfigOption[];
   private sessionCreated = false;
   private currentProgram?: PreprogrammedPromptProgram;
   private pendingQuestionResolve?: () => void;
@@ -119,6 +124,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
     this.label = sessionConfig.label ?? this.sessionId;
     this.models = sessionConfig.models;
     this.modes = sessionConfig.modes;
+    this.configOptions = [...(sessionConfig.configOptions ?? [])];
 
     for (const program of config.promptPrograms ?? []) {
       const key = this.normalizePrompt(program.promptText);
@@ -154,6 +160,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
       sessionId: this.sessionId,
       models: this.models,
       modes: this.modes,
+      configOptions: this.configOptions,
     } satisfies NewSessionResponse;
   }
 
@@ -288,8 +295,27 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
     return;
   }
 
-  async changeModel(_sessionId: string, _modelId: string): Promise<void> {
-    return;
+  async changeModel(_sessionId: string, modelId: string): Promise<void> {
+    const modelConfigOptions = this.config.session.modelConfigOptions;
+    if (modelConfigOptions) {
+      this.configOptions = [...(modelConfigOptions[modelId] ?? [])];
+      this._onDidOptionsChanged.fire();
+    }
+  }
+
+  async setSessionConfigOption(
+    _sessionId: string,
+    configId: string,
+    value: string,
+  ): Promise<void> {
+    this.configOptions = this.configOptions.map((o) =>
+      o.id === configId ? { ...o, currentValue: value } : o,
+    );
+    this._onDidOptionsChanged.fire();
+  }
+
+  getConfigOptions(): SessionConfigOption[] {
+    return this.configOptions;
   }
 
   async sendQuestionAnswers(

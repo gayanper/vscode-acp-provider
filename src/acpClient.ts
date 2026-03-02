@@ -14,11 +14,13 @@ import {
   PROTOCOL_VERSION,
   RequestPermissionRequest,
   RequestPermissionResponse,
+  SessionConfigOption,
   SessionModelState,
   SessionModeState,
   McpServer,
   McpServerStdio,
   SessionNotification,
+  SetSessionConfigOptionRequest,
   SetSessionModelRequest,
   SetSessionModeRequest,
 } from "@agentclientprotocol/sdk";
@@ -74,6 +76,12 @@ export interface AcpClient extends Client, vscode.Disposable {
   cancel(sessionId: string): Promise<void>;
   changeMode(sessionId: string, modeId: string): Promise<void>;
   changeModel(sessionId: string, modelId: string): Promise<void>;
+  setSessionConfigOption(
+    sessionId: string,
+    configId: string,
+    value: string,
+  ): Promise<void>;
+  getConfigOptions(): SessionConfigOption[];
   sendQuestionAnswers(
     sessionId: string,
     toolCallId: string,
@@ -98,6 +106,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
   private agentCapabilities?: InitializeResponse;
   private supportedModelState: SessionModelState | null = null;
   private supportedModeState: SessionModeState | null = null;
+  private configOptions: SessionConfigOption[] = [];
 
   private readonly onSessionUpdateEmitter = this._register(
     new vscode.EventEmitter<SessionNotification>(),
@@ -168,6 +177,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
         await this.connection.newSession(request);
       this.supportedModeState = response.modes || null;
       this.supportedModelState = response.models || null;
+      this.configOptions = response.configOptions ?? [];
 
       this._onDidOptionsChanged.fire();
 
@@ -218,6 +228,7 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
 
       this.supportedModelState = response.models || null;
       this.supportedModeState = response.modes || null;
+      this.configOptions = response.configOptions ?? [];
       this._onDidOptionsChanged.fire();
 
       return {
@@ -301,6 +312,50 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
       sessionId,
     };
     await this.connection.unstable_setSessionModel(request);
+
+    // Re-sync configOptions after model change by re-querying via setSessionConfigOption.
+    // The thought_level option may have changed (added/removed) for the new model.
+    const currentThoughtLevelOption = this.configOptions.find(
+      (o) => o.category === "thought_level",
+    );
+    if (currentThoughtLevelOption) {
+      try {
+        const response = await this.connection.setSessionConfigOption({
+          sessionId,
+          configId: currentThoughtLevelOption.id,
+          value: currentThoughtLevelOption.currentValue,
+        } satisfies SetSessionConfigOptionRequest);
+        this.configOptions = response.configOptions;
+      } catch {
+        // New model may not support thought_level; remove stale thought_level options
+        this.configOptions = this.configOptions.filter(
+          (o) => o.category !== "thought_level",
+        );
+      }
+      this._onDidOptionsChanged.fire();
+    }
+  }
+
+  getConfigOptions(): SessionConfigOption[] {
+    return this.configOptions;
+  }
+
+  async setSessionConfigOption(
+    sessionId: string,
+    configId: string,
+    value: string,
+  ): Promise<void> {
+    await this.ensureReady(this.mode);
+    if (!this.connection) {
+      throw new Error("ACP connection is not ready");
+    }
+    const response = await this.connection.setSessionConfigOption({
+      sessionId,
+      configId,
+      value,
+    } satisfies SetSessionConfigOptionRequest);
+    this.configOptions = response.configOptions;
+    this._onDidOptionsChanged.fire();
   }
 
   async sendQuestionAnswers(

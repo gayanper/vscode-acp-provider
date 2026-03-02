@@ -6,6 +6,23 @@ import {
 } from "./preprogrammedAcpClient";
 import { currentWorkspaceRoot } from "./types";
 import { appendFileSync, existsSync, writeFile, writeFileSync } from "fs";
+import { SessionConfigOption } from "@agentclientprotocol/sdk";
+
+const GPT4_THOUGHT_LEVEL_OPTIONS: SessionConfigOption[] = [
+  {
+    id: "effort",
+    name: "Thinking",
+    description: "Controls how much the model reasons before responding",
+    category: "thought_level",
+    type: "select",
+    currentValue: "normal",
+    options: [
+      { value: "normal", name: "Normal", description: "Standard reasoning" },
+      { value: "high", name: "High", description: "Deep reasoning" },
+      { value: "max", name: "Max", description: "Maximum effort" },
+    ],
+  },
+];
 
 export function createTestAcpClientWithScenarios(
   permissionHandler: AcpPermissionHandler,
@@ -41,6 +58,11 @@ export function createTestAcpClientWithScenarios(
         ],
         currentModeId: "plan",
       },
+      configOptions: GPT4_THOUGHT_LEVEL_OPTIONS,
+      modelConfigOptions: {
+        "gpt-4": GPT4_THOUGHT_LEVEL_OPTIONS,
+        "gpt-3.5-turbo": [],
+      },
     },
     agentCapabilities: {
       loadSession: true,
@@ -75,6 +97,11 @@ export function createTestAcpClientWithScenarios(
           },
         ],
         currentModeId: "plan",
+      },
+      configOptions: GPT4_THOUGHT_LEVEL_OPTIONS,
+      modelConfigOptions: {
+        "gpt-4": GPT4_THOUGHT_LEVEL_OPTIONS,
+        "gpt-3.5-turbo": [],
       },
     },
   };
