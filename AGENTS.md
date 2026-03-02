@@ -29,3 +29,4 @@
 Following are implementations of ACP agents which can be used for exploring how agent's requests and responses looks like
 
 - [https://github.com/zed-industries/claude-agent-acp](https://github.com/zed-industries/claude-agent-acp)
+- [https://github.com/anomalyco/opencode](https://github.com/anomalyco/opencode)
