@@ -23,3 +23,9 @@
 
 - ACP (Agent Client Protocol) : https://agentclientprotocol.com/protocol/schema
 - VSCode Extension API: https://code.visualstudio.com/api/references/vscode-api
+
+## ACP Agent Reference
+
+Following are implementations of ACP agents which can be used for exploring how agent's requests and responses looks like
+
+- [https://github.com/zed-industries/claude-agent-acp](https://github.com/zed-industries/claude-agent-acp)
