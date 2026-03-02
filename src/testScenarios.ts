@@ -90,6 +90,7 @@ export function createTestAcpClientWithScenarios(
   addAskQuestionScenario(config);
   addToolCallPatchFile(config);
   addModeSwitchingScenario(config);
+  addExitPlanModePermissionScenario(config);
 
   // create a new prompt which lists these scenarios when typed "list"
   config.promptPrograms?.push({
@@ -920,6 +921,75 @@ function addModeSwitchingScenario(config: PreprogrammedConfig) {
             content: {
               type: "text",
               text: "Now in build mode. Ready to implement.",
+            },
+          },
+        },
+      ],
+    },
+  });
+}
+
+function addExitPlanModePermissionScenario(config: PreprogrammedConfig) {
+  config.promptPrograms?.push({
+    promptText: "exit plan mode",
+    permission: {
+      title: "Ready to implement?",
+      toolCall: {
+        toolCallId: "exit_plan_mode_tool_call_1",
+        title: "exit_plan_mode",
+        kind: "switch_mode",
+        rawInput: {},
+        status: "pending",
+      },
+      options: [
+        { optionId: "autopilot_fleet", name: "Autopilot Fleet (Recommended)", kind: "allow_once" },
+        { optionId: "autopilot", name: "Autopilot", kind: "allow_once" },
+        { optionId: "interactive", name: "Interactive", kind: "allow_once" },
+        { optionId: "exit_only", name: "Exit Only", kind: "reject_once" },
+      ],
+    },
+    notifications: {
+      permissionAllowed: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "exit_plan_mode_tool_call_1",
+            title: "exit_plan_mode",
+            kind: "switch_mode",
+            rawInput: {},
+            status: "in_progress",
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "tool_call_update",
+            toolCallId: "exit_plan_mode_tool_call_1",
+            title: "exit_plan_mode",
+            rawInput: {},
+            status: "completed",
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "Plan approved. Starting implementation.",
+            },
+          },
+        },
+      ],
+      permissionDenied: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "Staying in plan mode.",
             },
           },
         },

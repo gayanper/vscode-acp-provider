@@ -162,6 +162,13 @@ export class PermissionPromptManager
       kind?: string;
       rawInput?: unknown;
     };
+
+    // For mode-switching tool calls (e.g. exit_plan_mode), render all options
+    // directly via question carousel instead of the binary yes/no confirmation.
+    if (this.isSwitchModeToolCall(toolCall)) {
+      await this.renderChatPrompt(pending);
+      return;
+    }
     const toolName = this.getToolName(toolCall);
     const command = this.formatCommand(toolCall.rawInput, 240);
     const hasCommand = command !== "unknown";
@@ -370,6 +377,20 @@ export class PermissionPromptManager
     return vscode.lm.tools.some(
       (tool) => tool.name === VscodeToolNames.VscodeGetConfirmation,
     );
+  }
+
+  private isSwitchModeToolCall(toolCall: {
+    title?: string;
+    kind?: string;
+  }): boolean {
+    if (toolCall.kind === "switch_mode") {
+      return true;
+    }
+    // Fallback: check title for exit_plan_mode variants (e.g. "exit_plan_mode", "ExitPlanMode")
+    const normalized = (toolCall.title ?? "")
+      .toLowerCase()
+      .replace(/[-_\s]/g, "");
+    return normalized === "exitplanmode";
   }
 
   resolveFromCommand(payload: PermissionResolutionPayload): void {

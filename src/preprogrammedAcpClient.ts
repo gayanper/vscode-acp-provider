@@ -37,10 +37,12 @@ export interface PromptNotificationPlan {
 
 export interface PreprogrammedPermissionConfig {
   readonly title: string;
-  readonly rawInput: {
-    readonly command: string[];
+  readonly rawInput?: {
+    readonly command?: string[];
+    readonly [key: string]: unknown;
   };
   readonly toolCall?: Partial<ToolCallUpdate>;
+  readonly options?: Array<import("@agentclientprotocol/sdk").PermissionOption>;
 }
 
 export interface PreprogrammedPromptProgram {
@@ -208,7 +210,7 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
         rawInput: permission.toolCall?.rawInput ?? permission.rawInput,
       };
       const response = await this.requestPermission({
-        options: [
+        options: permission.options ?? [
           {
             kind: "allow_always",
             name: "Allow",
@@ -226,7 +228,16 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
 
       if (response.outcome.outcome === "selected") {
         const plan = program.notifications as PromptNotificationPlan;
-        if (response.outcome.optionId === "allow") {
+        const selectedOutcome = response.outcome as { outcome: "selected"; optionId: string };
+        const allOptions = permission.options ?? [
+          { kind: "allow_always", name: "Allow", optionId: "allow" },
+          { kind: "reject_always", name: "Reject", optionId: "deny" },
+        ];
+        const selectedOption = allOptions.find(
+          (o) => o.optionId === selectedOutcome.optionId
+        );
+        const isRejected = selectedOption?.kind.startsWith("reject") ?? false;
+        if (!isRejected) {
           await this.streamNotificationPlan(plan, "permissionAllowed");
         } else {
           await this.streamNotificationPlan(plan, "permissionDenied");
