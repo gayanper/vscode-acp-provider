@@ -456,16 +456,18 @@ export class PermissionPromptManager
         rawInput?: unknown;
       };
       const toolName = this.getToolName(toolCall);
-      const command = this.formatCommand(toolCall.rawInput);
+      const planMarkdown = this.buildSwitchModeMessage(toolCall.rawInput);
+      if (planMarkdown) {
+        context.response.markdown(planMarkdown);
+      }
+      const planSummary = this.extractPlanSummary(toolCall.rawInput);
       const questionId = `${pending.promptId}-permission`;
       const question = new vscode.ChatQuestion(
         questionId,
         vscode.ChatQuestionType.SingleSelect,
-        `Permission required: ${toolName}`,
+        toolName,
         {
-          message: new vscode.MarkdownString(
-            `Execute: ${this.wrapInlineCode(command)}`,
-          ),
+          message: planSummary,
           options: pending.request.options.map((option) => ({
             id: option.optionId,
             label: this.optionLabel(option),
@@ -566,6 +568,49 @@ export class PermissionPromptManager
 
   private getToolName(toolCall: { title?: string; kind?: string }): string {
     return toolCall.title ?? toolCall.kind ?? "Tool";
+  }
+
+  private buildSwitchModeMessage(
+    rawInput: unknown,
+  ): vscode.MarkdownString | undefined {
+    if (rawInput && typeof rawInput === "object") {
+      const plan = (rawInput as { plan?: unknown }).plan;
+      if (typeof plan === "string" && plan.trim()) {
+        const md = new vscode.MarkdownString(plan, true);
+        md.isTrusted = { enabledCommands: [] };
+        return md;
+      }
+    }
+    return undefined;
+  }
+
+  private stripMarkdown(text: string): string {
+    return text
+      .replace(/^#{1,6}\s+/, "")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/\*(.*?)\*/g, "$1")
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+      .trim();
+  }
+
+  private extractPlanSummary(rawInput: unknown): string {
+    const fallback = "Review the plan and decide how to proceed";
+    if (!rawInput || typeof rawInput !== "object") {
+      return fallback;
+    }
+    const plan = (rawInput as { plan?: unknown }).plan;
+    if (typeof plan !== "string" || !plan.trim()) {
+      return fallback;
+    }
+    const lines = plan
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    return lines
+      .slice(0, 3)
+      .map((l) => this.stripMarkdown(l))
+      .filter((l) => l.length > 0)
+      .join(" — ");
   }
 
   private formatCommand(rawInput: unknown, maxLength = 100): string {

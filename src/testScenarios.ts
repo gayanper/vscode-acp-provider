@@ -938,7 +938,10 @@ function addExitPlanModePermissionScenario(config: PreprogrammedConfig) {
         toolCallId: "exit_plan_mode_tool_call_1",
         title: "exit_plan_mode",
         kind: "switch_mode",
-        rawInput: {},
+        rawInput: {
+          plan: "## Implementation Plan\n\nThis plan outlines the changes required to correctly render the plan markdown in the permission prompt and ensure the switch_mode tool call carries the right input through the ACP provider pipeline.\n\n- **Step 1**: Update `src/permissionPrompts.ts` to render plan markdown\n- **Step 2**: Fix `partialInput` in `acpChatParticipant.ts` for switch_mode calls\n- **Step 3**: Update test scenarios",
+          thoughts: "The plan looks solid. Ready to implement.",
+        },
         status: "pending",
       },
       options: [

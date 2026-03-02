@@ -382,7 +382,8 @@ export class AcpChatParticipant extends DisposableBase {
           invocationMessage,
           subAgentInvocationId,
         });
-        const partialInput = update.rawInput ?? info.input;
+        const partialInput =
+          info.kind === "switch_mode" ? undefined : update.rawInput ?? info.input;
         const streamData:
           | (vscode.ChatToolInvocationStreamData & {
               subagentInvocationId?: string;
