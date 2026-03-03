@@ -972,7 +972,11 @@ function addExitPlanModePermissionScenario(config: PreprogrammedConfig) {
         status: "pending",
       },
       options: [
-        { optionId: "autopilot_fleet", name: "Autopilot Fleet (Recommended)", kind: "allow_once" },
+        {
+          optionId: "autopilot_fleet",
+          name: "Autopilot Fleet (Recommended)",
+          kind: "allow_once",
+        },
         { optionId: "autopilot", name: "Autopilot", kind: "allow_once" },
         { optionId: "interactive", name: "Interactive", kind: "allow_once" },
         { optionId: "exit_only", name: "Exit Only", kind: "reject_once" },

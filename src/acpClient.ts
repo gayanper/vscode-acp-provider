@@ -284,8 +284,14 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
 
   async sessionUpdate(notification: SessionNotification): Promise<void> {
     const update = notification.update;
-    if (update.sessionUpdate === "current_mode_update" && this.supportedModeState) {
-      this.supportedModeState = { ...this.supportedModeState, currentModeId: update.currentModeId };
+    if (
+      update.sessionUpdate === "current_mode_update" &&
+      this.supportedModeState
+    ) {
+      this.supportedModeState = {
+        ...this.supportedModeState,
+        currentModeId: update.currentModeId,
+      };
       this._onDidOptionsChanged.fire();
     }
     this.onSessionUpdateEmitter.fire(notification);

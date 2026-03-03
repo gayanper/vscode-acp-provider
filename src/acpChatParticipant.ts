@@ -29,7 +29,7 @@ import {
   VscodeToolNames,
 } from "./types";
 import { Tracer } from "./tracer";
-    
+
 const LIST_COMMANDS_PROMPT = "/list-commands";
 
 /**
@@ -383,7 +383,9 @@ export class AcpChatParticipant extends DisposableBase {
           subAgentInvocationId,
         });
         const partialInput =
-          info.kind === "switch_mode" ? undefined : update.rawInput ?? info.input;
+          info.kind === "switch_mode"
+            ? undefined
+            : (update.rawInput ?? info.input);
         const streamData:
           | (vscode.ChatToolInvocationStreamData & {
               subagentInvocationId?: string;

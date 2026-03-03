@@ -16,10 +16,7 @@ import {
 } from "./permissionPrompts";
 import { createAcpChatSessionItemProvider } from "./acpChatSessionItemProvider";
 import { createSessionDb, SessionDb } from "./acpSessionDb";
-import {
-  AcpSessionSyncer,
-  createAcpSessionSyncer,
-} from "./acpSessionSyncer";
+import { AcpSessionSyncer, createAcpSessionSyncer } from "./acpSessionSyncer";
 import { createTestAcpClientWithScenarios } from "./testScenarios";
 import { AcpClient } from "./acpClient";
 import { registerCommands } from "./commands";

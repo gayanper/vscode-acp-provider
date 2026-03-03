@@ -81,6 +81,8 @@ class AcpChatSessionItemProvider
   provideChatSessionItems(
     token: vscode.CancellationToken,
   ): vscode.ProviderResult<vscode.ChatSessionItem[]> {
-    return this.sessionManager.list();
+    return this.sessionManager
+      .list()
+      .then((items) => items.map((item) => ({ ...item })));
   }
 }

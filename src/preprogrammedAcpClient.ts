@@ -236,13 +236,16 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
 
       if (response.outcome.outcome === "selected") {
         const plan = program.notifications as PromptNotificationPlan;
-        const selectedOutcome = response.outcome as { outcome: "selected"; optionId: string };
+        const selectedOutcome = response.outcome as {
+          outcome: "selected";
+          optionId: string;
+        };
         const allOptions = permission.options ?? [
           { kind: "allow_always", name: "Allow", optionId: "allow" },
           { kind: "reject_always", name: "Reject", optionId: "deny" },
         ];
         const selectedOption = allOptions.find(
-          (o) => o.optionId === selectedOutcome.optionId
+          (o) => o.optionId === selectedOutcome.optionId,
         );
         const isRejected = selectedOption?.kind.startsWith("reject") ?? false;
         if (!isRejected) {
