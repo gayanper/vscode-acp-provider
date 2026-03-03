@@ -3,6 +3,7 @@ import {
   AgentCapabilities,
   Client,
   ContentBlock,
+  ListSessionsResponse,
   LoadSessionResponse,
   NewSessionResponse,
   PromptResponse,
@@ -348,6 +349,10 @@ class PreprogrammedAcpClient extends DisposableBase implements AcpClient {
       this.pendingQuestionResolve();
       this.pendingQuestionResolve = undefined;
     }
+  }
+
+  async listNativeSessions(_cursor?: string): Promise<ListSessionsResponse> {
+    return { sessions: [] };
   }
 
   dispose(): void {

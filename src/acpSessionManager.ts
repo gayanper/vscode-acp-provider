@@ -2,6 +2,7 @@
 import vscode, { ChatSessionItem, ChatSessionStatus } from "vscode";
 import { AcpClient, AcpPermissionHandler, createAcpClient } from "./acpClient";
 import { DiskSession, SessionDb } from "./acpSessionDb";
+import { AcpSessionSyncer } from "./acpSessionSyncer";
 import { AgentRegistryEntry } from "./agentRegistry";
 import { createSessionUri, decodeVscodeResource } from "./chatIdentifiers";
 import { DisposableBase } from "./disposables";
@@ -102,6 +103,7 @@ export function createAcpSessionManager(
   permissionHandler: AcpPermissionHandler,
   logger: vscode.LogOutputChannel,
   clientProvider?: () => AcpClient,
+  sessionSyncer?: AcpSessionSyncer,
 ): AcpSessionManager {
   return new SessionManager(
     sessionDb,
@@ -109,6 +111,7 @@ export function createAcpSessionManager(
     permissionHandler,
     logger,
     clientProvider,
+    sessionSyncer,
   );
 }
 
@@ -121,13 +124,14 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     private readonly logger: vscode.LogOutputChannel,
     clientFactory: () => AcpClient = () =>
       createAcpClient(agent, permissionHandler, logger),
+    private readonly sessionSyncer?: AcpSessionSyncer,
   ) {
     super();
     this.clientFactory = clientFactory;
 
     this._register(
       this.sessionDb.onDataChanged(async () => {
-        this.logger.info(
+        this.logger.debug(
           `Session DB data changed event received for agent ${this.agent.id}`,
         );
         await this.loadDiskSessionsIfNeeded(true);
@@ -200,6 +204,11 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
           getWorkspaceCwd(),
           this.agent.mcpServers,
         );
+        this.sessionSyncer
+          ?.sync(this.agent.id, client)
+          .catch((e) =>
+            this.logger.warn(`[acpSessionSyncer] Sync failed: ${e}`),
+          );
         this.cachedOptions = this.buildOptions(client);
 
         const session = new Session(
@@ -251,6 +260,11 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
           existingSession.cwd,
           this.agent.mcpServers,
         );
+        this.sessionSyncer
+          ?.sync(this.agent.id, client)
+          .catch((e) =>
+            this.logger.warn(`[acpSessionSyncer] Sync failed: ${e}`),
+          );
         this.cachedOptions = this.buildOptions(client);
 
         const session = new Session(

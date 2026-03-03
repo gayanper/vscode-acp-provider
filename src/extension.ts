@@ -16,6 +16,10 @@ import {
 } from "./permissionPrompts";
 import { createAcpChatSessionItemProvider } from "./acpChatSessionItemProvider";
 import { createSessionDb, SessionDb } from "./acpSessionDb";
+import {
+  AcpSessionSyncer,
+  createAcpSessionSyncer,
+} from "./acpSessionSyncer";
 import { createTestAcpClientWithScenarios } from "./testScenarios";
 import { AcpClient } from "./acpClient";
 import { registerCommands } from "./commands";
@@ -65,6 +69,12 @@ function registerAgents(params: {
 }): Map<string, AcpSessionManager> {
   const { registry, outputChannel, context } = params;
   const managers = new Map<string, AcpSessionManager>();
+
+  const sessionSyncer: AcpSessionSyncer = createAcpSessionSyncer(
+    params.sessionDb,
+    outputChannel,
+  );
+  context.subscriptions.push(sessionSyncer);
   registry.list().forEach((agent) => {
     const permisionPromptsManager = new PermissionPromptManager(outputChannel);
     context.subscriptions.push(permisionPromptsManager);
@@ -91,6 +101,7 @@ function registerAgents(params: {
       permisionPromptsManager,
       outputChannel,
       clientProvider,
+      sessionSyncer,
     );
     context.subscriptions.push(sessionManager);
 

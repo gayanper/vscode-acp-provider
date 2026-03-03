@@ -6,6 +6,7 @@ import {
   ClientSideConnection,
   ContentBlock,
   InitializeResponse,
+  ListSessionsResponse,
   LoadSessionResponse,
   ndJsonStream,
   NewSessionRequest,
@@ -87,6 +88,7 @@ export interface AcpClient extends Client, vscode.Disposable {
     toolCallId: string,
     answers: Record<string, unknown>,
   ): Promise<void>;
+  listNativeSessions(cursor?: string): Promise<ListSessionsResponse>;
 }
 
 export function createAcpClient(
@@ -381,6 +383,13 @@ class AcpClientImpl extends DisposableBase implements AcpClient {
         `Failed to send question answers: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
+  }
+
+  async listNativeSessions(cursor?: string): Promise<ListSessionsResponse> {
+    if (!this.connection) {
+      throw new Error("AcpClient not connected");
+    }
+    return this.connection.unstable_listSessions({ cursor });
   }
 
   async dispose(): Promise<void> {

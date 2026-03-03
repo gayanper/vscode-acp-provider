@@ -18,6 +18,7 @@ export interface SessionDb extends vscode.Disposable {
   upsertSession(agent: AgentType, info: DiskSession): Promise<void>;
   deleteSession(agent: AgentType, sessionId: string): Promise<void>;
   deleteAllSessions(cwd: string): Promise<void>;
+  hasSession(agent: AgentType, sessionId: string): Promise<boolean>;
 }
 
 function getAcpDbFile(context: vscode.ExtensionContext): string {
@@ -130,6 +131,13 @@ class SqlLiteSessionDb implements SessionDb {
     if (resp.changes > 0) {
       this._onDataChanged.fire();
     }
+  }
+
+  async hasSession(agent: AgentType, sessionId: string): Promise<boolean> {
+    const row = this.db!.prepare(
+      "SELECT COUNT(*) AS count FROM sessions WHERE agent_type=? AND session_id=?",
+    ).get(agent, sessionId) as { count: number };
+    return row.count > 0;
   }
 
   dispose() {
