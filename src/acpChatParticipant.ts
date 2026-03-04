@@ -15,8 +15,10 @@ import {
   getSubAgentInvocationId,
   getToolInfo,
   isTerminalToolInvocation,
+  makeCommandLink,
   parseQuestions,
   resolveUri,
+  trustedCommandMarkdown,
   type ToolInfo,
 } from "./chatRenderingUtils";
 import { createDiffUri, setDiffContent } from "./diffContentProvider";
@@ -30,7 +32,7 @@ import {
 } from "./types";
 import { Tracer } from "./tracer";
 
-const LIST_COMMANDS_PROMPT = "/list-commands";
+const LIST_COMMANDS_PROMPT = "/?";
 
 /**
  * Check if a title matches known question tool call patterns (case-insensitive).
@@ -628,9 +630,15 @@ export class AcpChatParticipant extends DisposableBase {
     response.markdown("## Available ACP commands\n");
     for (const command of commands) {
       const hint = command.input?.hint ? ` — ${command.input.hint}` : "";
-      response.markdown("- `/" + command.name + "`" + hint + "\n");
+      const link = makeCommandLink(`/${command.name}`, `/${command.name}`);
       if (command.description?.trim()) {
-        response.markdown(`  - ${command.description.trim()}\n`);
+        response.markdown(
+          trustedCommandMarkdown(
+            `- ${link} ${hint}\n\n  _${command.description.trim()}_\n\n`,
+          ),
+        );
+      } else {
+        response.markdown(trustedCommandMarkdown(`- ${link} ${hint}\n`));
       }
     }
   }

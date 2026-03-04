@@ -23,5 +23,15 @@ export function registerCommands(
         );
       }
     }),
+
+    vscode.commands.registerCommand(
+      "acp.insertChatText",
+      async (text: string) => {
+        await vscode.commands.executeCommand("workbench.action.chat.open", {
+          query: text,
+          isPartialQuery: true,
+        });
+      },
+    ),
   );
 }

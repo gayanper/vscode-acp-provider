@@ -46,16 +46,8 @@
         "description": "Chat sessions backed by the OpenCode ACP agent",
         "commands": [
           {
-            "name": "list-commands",
+            "name": "?",
             "description": "List available ACP commands"
-          },
-          {
-            "name": "compact",
-            "description": "Compact the current conversation"
-          },
-          {
-            "name": "new",
-            "description": "Start a new session"
           }
         ],
         "icon": "$(hubot)",
@@ -72,24 +64,8 @@
         "description": "Chat sessions backed by the Codex ACP agent",
         "commands": [
           {
-            "name": "list-commands",
+            "name": "?",
             "description": "List available ACP commands"
-          },
-          {
-            "name": "compact",
-            "description": "Compact the current conversation"
-          },
-          {
-            "name": "review",
-            "description": "Review code with optional instructions"
-          },
-          {
-            "name": "review-branch",
-            "description": "Review a branch"
-          },
-          {
-            "name": "review-commit",
-            "description": "Review a commit"
           }
         ],
         "icon": "$(hubot)",
@@ -106,7 +82,7 @@
         "description": "Chat sessions backed by the Cagent ACP agent",
         "commands": [
           {
-            "name": "list-commands",
+            "name": "?",
             "description": "List available ACP commands"
           }
         ],
@@ -124,16 +100,8 @@
         "description": "Chat sessions backed by the Gemini CLI ACP agent",
         "commands": [
           {
-            "name": "list-commands",
+            "name": "?",
             "description": "List available ACP commands"
-          },
-          {
-            "name": "clear",
-            "description": "Clear the current session"
-          },
-          {
-            "name": "compress",
-            "description": "Compress conversation context"
           }
         ],
         "icon": "$(hubot)",
@@ -150,20 +118,8 @@
         "description": "Chat sessions backed by the Claude Code ACP agent",
         "commands": [
           {
-            "name": "list-commands",
+            "name": "?",
             "description": "List available ACP commands"
-          },
-          {
-            "name": "clear",
-            "description": "Clear the current session"
-          },
-          {
-            "name": "compact",
-            "description": "Compact the current conversation"
-          },
-          {
-            "name": "plan",
-            "description": "Create or manage plans"
           }
         ],
         "icon": "$(hubot)",
@@ -180,7 +136,7 @@
         "description": "Chat sessions backed by the Mistral Vibe ACP agent",
         "commands": [
           {
-            "name": "list-commands",
+            "name": "?",
             "description": "List available ACP commands"
           }
         ],
@@ -198,28 +154,8 @@
         "description": "Chat sessions backed by the Copilot ACP agent",
         "commands": [
           {
-            "name": "list-commands",
+            "name": "?",
             "description": "List available ACP commands"
-          },
-          {
-            "name": "clear",
-            "description": "Clear the current session"
-          },
-          {
-            "name": "new",
-            "description": "Clear the current session"
-          },
-          {
-            "name": "compact",
-            "description": "Compact the current conversation"
-          },
-          {
-            "name": "plan",
-            "description": "Create or manage plans"
-          },
-          {
-            "name": "review",
-            "description": "Review changes"
           }
         ],
         "icon": "$(hubot)",

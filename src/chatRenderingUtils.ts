@@ -9,6 +9,35 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { currentWorkspaceRoot } from "./types";
 
+const INSERT_CHAT_TEXT_COMMAND = "acp.insertChatText";
+
+/**
+ * Builds a markdown link that, when clicked, pre-fills the VS Code chat input
+ * with the given command text without sending it.
+ *
+ * @param label The display text for the link
+ * @param commandText The text to pre-fill in the chat input
+ * @returns A markdown link string using the `command:` URI scheme
+ */
+export function makeCommandLink(label: string, commandText: string): string {
+  const args = encodeURIComponent(JSON.stringify([commandText]));
+  return `[${label}](command:${INSERT_CHAT_TEXT_COMMAND}?${args})`;
+}
+
+/**
+ * Creates a `MarkdownString` with the given content that has the
+ * `acp.insertChatText` command trusted, enabling inline `command:` links
+ * produced by {@link makeCommandLink} to be clickable in chat responses.
+ *
+ * @param content The markdown content string (may include command: links)
+ * @returns A trusted `MarkdownString` for use with `ChatResponseStream.markdown()`
+ */
+export function trustedCommandMarkdown(content: string): vscode.MarkdownString {
+  const md = new vscode.MarkdownString(content);
+  md.isTrusted = { enabledCommands: [INSERT_CHAT_TEXT_COMMAND] };
+  return md;
+}
+
 const DEFAULT_TERMINAL_LANGUAGE = "shell";
 
 export type ToolInfo = {
