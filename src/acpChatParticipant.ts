@@ -10,7 +10,6 @@ import { AcpSessionManager, Session } from "./acpSessionManager";
 import {
   buildDiffStats,
   buildMcpToolInvocationData,
-  buildQuestionCarouselPart,
   buildTerminalToolInvocationData,
   getSubAgentInvocationId,
   getToolInfo,
@@ -24,13 +23,13 @@ import {
 import { createDiffUri, setDiffContent } from "./diffContentProvider";
 import { DisposableBase } from "./disposables";
 import { PermissionPromptManager } from "./permissionPrompts";
+import { Tracer } from "./tracer";
 import {
   currentWorkspaceRoot,
   extractReadableErrorMessage,
   ResolvableCallback,
   VscodeToolNames,
 } from "./types";
-import { Tracer } from "./tracer";
 
 const LIST_COMMANDS_PROMPT = "/?";
 
@@ -130,13 +129,8 @@ export class AcpChatParticipant extends DisposableBase {
     const cancellation = new vscode.CancellationTokenSource();
     session.pendingRequest = { cancellation };
 
-    let timeout = setTimeout(() => {
-      response.progress("Working...");
-    }, 100);
-
     const subscription = session.client.onSessionUpdate(
       async (notification) => {
-        clearTimeout(timeout);
         if (
           !session.acpSessionId ||
           notification.sessionId !== session.acpSessionId
@@ -147,10 +141,6 @@ export class AcpChatParticipant extends DisposableBase {
           return;
         }
         await this.renderSessionUpdate(notification, response);
-
-        timeout = setTimeout(() => {
-          response.progress("Working...");
-        }, 5000);
       },
     );
 
