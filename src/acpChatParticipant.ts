@@ -123,6 +123,9 @@ export class AcpChatParticipant extends DisposableBase {
     if (request.prompt.trim() === LIST_COMMANDS_PROMPT) {
       this.renderAvailableCommands(session, response);
       session.markAsCompleted();
+      this.sessionManager.syncSessionState(sessionResource, session);
+      this.currentSession = null;
+      this.currentToolInvocationToken = undefined;
       return;
     }
 
@@ -168,6 +171,7 @@ export class AcpChatParticipant extends DisposableBase {
           "> ℹ️ **Info:** Prompt cannot be empty. Please provide a question or instruction for the ACP agent.",
         );
         session.markAsCompleted();
+        this.sessionManager.syncSessionState(sessionResource, session);
         return;
       }
       if (token.isCancellationRequested) {
@@ -196,6 +200,7 @@ export class AcpChatParticipant extends DisposableBase {
         return;
       }
       session.markAsFailed();
+      this.sessionManager.syncSessionState(sessionResource, session);
       // Render a Copilot-style error message in chat
       response.markdown(
         `> **Error:** ACP request failed. ${extractReadableErrorMessage(error)}`,
@@ -207,6 +212,12 @@ export class AcpChatParticipant extends DisposableBase {
       this.currentToolInvocationToken = undefined;
       cancellationRegistration.dispose();
       subscription.dispose();
+      this.toolInvocations.clear();
+      this.questionToolCalls.clear();
+      for (const callbacks of this.externalEditorCallbacks.values()) {
+        callbacks.forEach((c) => c.resolve());
+      }
+      this.externalEditorCallbacks.clear();
     }
   }
 
@@ -404,6 +415,7 @@ export class AcpChatParticipant extends DisposableBase {
 
         // Track if a file change
         this.handleFileEditToolCalls(info, update, response);
+        break;
       }
       case "tool_call_update": {
         const tracked = this.toolInvocations.get(update.toolCallId);
@@ -414,18 +426,35 @@ export class AcpChatParticipant extends DisposableBase {
             const questions = parseQuestions(update);
             if (questions) {
               try {
+                // Capture session before any await — this.currentSession is a shared
+                // mutable field that could be overwritten if a concurrent request starts.
+                const activeSession = this.currentSession;
+                activeSession?.markAsNeedsInput();
+                if (activeSession) {
+                  await this.sessionManager.syncSessionState(
+                    activeSession.vscodeResource,
+                    activeSession,
+                  );
+                }
                 const answers = await response.questionCarousel(
                   questions,
                   false,
                 );
 
                 // Send answers back to the agent
-                if (this.currentSession?.acpSessionId && answers) {
-                  await this.currentSession.client.sendQuestionAnswers(
-                    this.currentSession.acpSessionId,
+                if (activeSession?.acpSessionId && answers) {
+                  await activeSession.client.sendQuestionAnswers(
+                    activeSession.acpSessionId,
                     update.toolCallId,
                     answers,
                   );
+                  activeSession.markAsInProgress();
+                  if (activeSession) {
+                    await this.sessionManager.syncSessionState(
+                      activeSession.vscodeResource,
+                      activeSession,
+                    );
+                  }
                 }
               } catch (error) {
                 this.logger.error(
@@ -453,8 +482,8 @@ export class AcpChatParticipant extends DisposableBase {
         const part = new vscode.ChatToolInvocationPart(
           toolName,
           update.toolCallId,
-          update.status === "failed",
         );
+        part.isError = update.status === "failed";
         part.originMessage = toolName;
         const invocationMessage = info.input ?? tracked?.invocationMessage;
         if (invocationMessage) {

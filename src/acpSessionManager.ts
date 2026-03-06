@@ -68,6 +68,11 @@ export class Session {
     this._status = ChatSessionStatus.Failed;
     this._updatedAt = Date.now();
   }
+
+  markAsNeedsInput(): void {
+    this._status = ChatSessionStatus.NeedsInput;
+    this._updatedAt = Date.now();
+  }
 }
 
 export type Options = {
@@ -98,6 +103,7 @@ export interface AcpSessionManager extends vscode.Disposable {
   getOptions(): Promise<Options>;
   getAvailableCommands(sessionId: string): AvailableCommand[];
   closeSession(vscodeResource: vscode.Uri): void;
+  createSessionUri(session: Session): vscode.Uri;
 }
 
 export function createAcpSessionManager(
@@ -180,8 +186,29 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     thoughtLevelOptions: null,
   };
 
-  private createSessionUri(sessionId: string): vscode.Uri {
-    return createSessionUri(this.agent.id, sessionId);
+  createSessionUri(session: Session): vscode.Uri {
+    const uri = createSessionUri(this.agent.id, session.acpSessionId);
+    // find and replace the session with new session id in active sessions
+    const entry = Array.from(this.activeSessions).find(
+      (s) => s[1].acpSessionId === session.acpSessionId,
+    );
+    if (entry) {
+      this.activeSessions.delete(entry[0]);
+      const subs = this.sessionSubscriptions.get(entry[0]);
+      if (subs) {
+        this.sessionSubscriptions.delete(entry[0]);
+        this.sessionSubscriptions.set(session.acpSessionId, subs);
+      }
+      this.logger.debug(
+        `Replaced session with new session id ${session.acpSessionId}`,
+      );
+    } else {
+      this.logger.debug(
+        `Created session URI for session id ${session.acpSessionId} without replacement`,
+      );
+    }
+    this.activeSessions.set(session.acpSessionId, session);
+    return uri;
   }
 
   async createOrGet(vscodeResource: vscode.Uri): Promise<{
@@ -329,7 +356,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
 
     const chatSessionItems: ChatSessionItem[] = [];
     for (const [sessionId, session] of this.diskSessions) {
-      const resource = this.createSessionUri(sessionId);
+      const resource = createSessionUri(this.agent.id, sessionId);
 
       chatSessionItems.push({
         label: session.title || session.sessionId,
@@ -444,13 +471,17 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     if (!session) {
       return;
     }
+    session.markAsFailed();
+    this._onDidChangeSession.fire({ original: session, modified: session });
 
     this.disposeSessionClient(decoded.sessionId, session);
     this.activeSessions.delete(decoded.sessionId);
+    this.availableCommands.delete(decoded.sessionId);
     this.logger.info(`Closed session and killed process: ${decoded.sessionId}`);
   }
 
   dispose(): void {
+    super.dispose();
     for (const [sessionId, session] of this.activeSessions) {
       this.disposeSessionClient(sessionId, session);
     }

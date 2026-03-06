@@ -8,7 +8,7 @@
     "url": "https://github.com/gayanper/vscode-acp-provider.git"
   },
   "engines": {
-    "vscode": "^1.109.0"
+    "vscode": "^1.110.0"
   },
   "type": "commonjs",
   "categories": [
