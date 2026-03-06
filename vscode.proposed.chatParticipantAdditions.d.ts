@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 3
+
 declare module 'vscode' {
 
 	export interface ChatParticipant {
@@ -222,6 +224,16 @@ declare module 'vscode' {
 		language: string;
 
 		/**
+		 * Overrides for how the command is presented in the UI.
+		 * For example, when a `cd <dir> && <command>` prefix is detected,
+		 * the presentation can show only the actual command.
+		 */
+		presentationOverrides?: {
+			commandLine: string;
+			language?: string;
+		};
+
+		/**
 		 * Terminal command output. Displayed when the terminal is no longer available.
 		 */
 		output?: {
@@ -264,6 +276,49 @@ declare module 'vscode' {
 		output: McpToolInvocationContentData[];
 	}
 
+	export enum ChatTodoStatus {
+		NotStarted = 1,
+		InProgress = 2,
+		Completed = 3
+	}
+
+	export interface ChatTodoToolInvocationData {
+		todoList: Array<{
+			id: number;
+			title: string;
+			status: ChatTodoStatus;
+		}>;
+	}
+
+	/**
+	 * Generic tool result data that displays input and output in collapsible sections.
+	 */
+	export interface ChatSimpleToolResultData {
+		/**
+		 * The input to display.
+		 */
+		input: string;
+		/**
+		 * The output to display.
+		 */
+		output: string;
+	}
+
+	export interface ChatToolResourcesInvocationData {
+		/**
+		 * Array of file URIs or locations to display as a collapsible list
+		 */
+		values: Array<Uri | Location>;
+	}
+
+	export class ChatSubagentToolInvocationData {
+		description?: string;
+		agentName?: string;
+		prompt?: string;
+		result?: string;
+		constructor(description?: string, agentName?: string, prompt?: string, result?: string);
+	}
+
 	export class ChatToolInvocationPart {
 		toolName: string;
 		toolCallId: string;
@@ -273,11 +328,15 @@ declare module 'vscode' {
 		pastTenseMessage?: string | MarkdownString;
 		isConfirmed?: boolean;
 		isComplete?: boolean;
-		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData;
+		toolSpecificData?: ChatTerminalToolInvocationData | ChatMcpToolInvocationData | ChatTodoToolInvocationData | ChatSimpleToolResultData | ChatToolResourcesInvocationData | ChatSubagentToolInvocationData;
 		subAgentInvocationId?: string;
 		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
+		/**
+		 * If this flag is set, this will be treated as an update to any previous tool call with the same id.
+		 */
+		enablePartialUpdate?: boolean;
 
-		constructor(toolName: string, toolCallId: string, isError?: boolean);
+		constructor(toolName: string, toolCallId: string, errorMessage?: string);
 	}
 
 	/**
@@ -553,6 +612,13 @@ declare module 'vscode' {
 		push(part: ExtendedChatResponsePart): void;
 
 		clearToPreviousToolInvocation(reason: ChatResponseClearToPreviousToolInvocationReason): void;
+
+		/**
+		 * Report token usage information for this request.
+		 * This is typically called when the underlying language model provides usage statistics.
+		 * @param usage Token usage information including prompt and completion tokens
+		 */
+		usage(usage: ChatResultUsage): void;
 	}
 
 	export enum ChatResponseReferencePartStatusKind {

@@ -23,7 +23,12 @@ declare module 'vscode' {
 		/**
 		 * The chat session is currently in progress.
 		 */
-		InProgress = 2
+		InProgress = 2,
+
+		/**
+		 * The chat session needs user input (e.g. an unresolved confirmation).
+		 */
+		NeedsInput = 3
 	}
 
 	export namespace chat {
@@ -41,12 +46,32 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new {@link ChatSessionItemController chat session item controller} with the given unique identifier.
+		 *
+		 * @param chatSessionType The type of chat session the provider is for.
+		 * @param refreshHandler The controller's {@link ChatSessionItemController.refreshHandler refresh handler}.
+		 *
+		 * @returns A new controller instance that can be used to manage chat session items for the given chat session type.
 		 */
-		export function createChatSessionItemController(id: string, refreshHandler: (token: CancellationToken) => Thenable<void>): ChatSessionItemController;
+		export function createChatSessionItemController(chatSessionType: string, refreshHandler: ChatSessionItemControllerRefreshHandler): ChatSessionItemController;
 	}
 
 	/**
+	 * Extension callback invoked to refresh the collection of chat session items for a {@linkcode ChatSessionItemController}.
+	 */
+	export type ChatSessionItemControllerRefreshHandler = (token: CancellationToken) => Thenable<void>;
+
+	export interface ChatSessionItemControllerNewItemHandlerContext {
+		readonly request: ChatRequest;
+	}
+
+	/**
+	 * Extension callback invoked when a new chat session is started.
+	 */
+	export type ChatSessionItemControllerNewItemHandler = (context: ChatSessionItemControllerNewItemHandlerContext, token: CancellationToken) => Thenable<ChatSessionItem>;
+
+	/**
 	 * Provides a list of information about chat sessions.
+	 * @deprecated Use {@linkcode ChatSessionItemController} instead.
 	 */
 	export interface ChatSessionItemProvider {
 		/**
@@ -97,7 +122,16 @@ declare module 'vscode' {
 		 *
 		 * This is also called on first load to get the initial set of items.
 		 */
-		refreshHandler: (token: CancellationToken) => Thenable<void>;
+		readonly refreshHandler: ChatSessionItemControllerRefreshHandler;
+
+		/**
+		 * Invoked when a new chat session is started.
+		 *
+		 * This allows the controller to initialize the chat session item with information from the initial request.
+		 *
+		 * The returned chat session is added to the collection and shown in the UI.
+		 */
+		newChatSessionItemHandler?: ChatSessionItemControllerNewItemHandler;
 
 		/**
 		 * Fired when an item's archived state changes.

@@ -116,6 +116,8 @@ export class TurnBuilder {
     this.currentAgentMetadata = {};
     this.agentMessageChunks = [];
     this.turns = [];
+    this.toolCallParts.clear();
+    this.questionToolCalls.clear();
   }
 
   private captureUserMessageChunk(content?: ContentBlock): void {
@@ -153,7 +155,6 @@ export class TurnBuilder {
     const invocation = new vscode.ChatToolInvocationPart(
       info.name || "Tool",
       update.toolCallId,
-      false,
     );
     invocation.originMessage = info.name || "Tool";
     if (info.input) {

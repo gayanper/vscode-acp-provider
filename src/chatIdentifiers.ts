@@ -28,12 +28,8 @@ export function decodeVscodeResource(resource: vscode.Uri): {
     throw new Error(`Invalid resource path: ${resource.toString()}`);
   }
 
-  let sessionId: string = resource.path.substring(1);
+  const sessionId: string = resource.path.substring(1);
   const isUntitled = sessionId.startsWith("untitled-");
-  if (isUntitled) {
-    sessionId = "untitled"; // this make sure we reuse the same untitled session until user prompt it.
-  }
-
   return {
     isUntitled,
     sessionId,

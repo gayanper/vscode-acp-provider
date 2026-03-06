@@ -14,7 +14,7 @@ import {
   createPermissionResolveCommandId,
   PermissionPromptManager,
 } from "./permissionPrompts";
-import { createAcpChatSessionItemProvider } from "./acpChatSessionItemProvider";
+import { createAcpChatSessionItemController } from "./acpLifecycledChatSessionItemController";
 import { createSessionDb, SessionDb } from "./acpSessionDb";
 import { AcpSessionSyncer, createAcpSessionSyncer } from "./acpSessionSyncer";
 import { createTestAcpClientWithScenarios } from "./testScenarios";
@@ -51,7 +51,9 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
       agentSessionManagers.get(agentId)?.closeSession(uri);
-      outputChannel.info(`ACP session disposed, process killed: ${sessionUriStr}`);
+      outputChannel.info(
+        `ACP session disposed, process killed: ${sessionUriStr}`,
+      );
     }),
   );
 
@@ -121,6 +123,7 @@ function registerAgents(params: {
       `${ACP_CHAT_SCHEME}-${agent.id}`,
       participant.requestHandler,
     );
+    context.subscriptions.push(participantInstance);
     context.subscriptions.push(
       vscode.chat.registerChatSessionContentProvider(
         `${ACP_CHAT_SCHEME}-${agent.id}`,
@@ -129,18 +132,14 @@ function registerAgents(params: {
       ),
     );
 
-    const sessionItemProvider = createAcpChatSessionItemProvider(
+    const sessionItemController = createAcpChatSessionItemController(
+      `${ACP_CHAT_SCHEME}-${agent.id}`,
+      agent.id,
       sessionManager,
       params.sessionDb,
       outputChannel,
     );
-    context.subscriptions.push(sessionItemProvider);
-    context.subscriptions.push(
-      vscode.chat.registerChatSessionItemProvider(
-        `${ACP_CHAT_SCHEME}-${agent.id}`,
-        sessionItemProvider,
-      ),
-    );
+    context.subscriptions.push(sessionItemController);
 
     managers.set(agent.id, sessionManager);
   });
