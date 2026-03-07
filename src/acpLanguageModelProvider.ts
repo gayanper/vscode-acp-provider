@@ -8,6 +8,7 @@ import { DisposableBase } from "./disposables";
 
 const SEED_MODEL_ID_SUFFIX = "-default";
 const GLOBAL_STATE_KEY_PREFIX = "acp.models.";
+const GLOBAL_STATE_MAX_TOKENS_KEY_PREFIX = "acp.modelMaxTokens.";
 const ACP_DEFAULT_MAX_INPUT_TOKENS = 60_000;
 const ACP_DEFAULT_MAX_OUTPUT_TOKENS = 8_000;
 
@@ -22,9 +23,11 @@ export class AcpLanguageModelProvider
 {
   private readonly agentId: string;
   private readonly globalStateKey: string;
+  private readonly maxTokensStateKey: string;
   private readonly seedModelId: string;
   private readonly sessionType: string;
   private models: AcpModelInfo[];
+  private readonly modelMaxInputTokens: Map<string, number>;
 
   private readonly _onDidChangeLanguageModelChatInformation =
     new vscode.EventEmitter<void>();
@@ -39,8 +42,15 @@ export class AcpLanguageModelProvider
     super();
     this.agentId = agent.id;
     this.globalStateKey = `${GLOBAL_STATE_KEY_PREFIX}${this.agentId}`;
+    this.maxTokensStateKey = `${GLOBAL_STATE_MAX_TOKENS_KEY_PREFIX}${this.agentId}`;
     this.seedModelId = `${this.agentId}${SEED_MODEL_ID_SUFFIX}`;
     this.sessionType = `acp-${this.agentId}`;
+
+    // Load persisted max-token overrides from previous session
+    const persistedMaxTokens = this.context.globalState.get<
+      Record<string, number>
+    >(this.maxTokensStateKey, {});
+    this.modelMaxInputTokens = new Map(Object.entries(persistedMaxTokens));
 
     // Load persisted models from previous session
     const persisted = this.context.globalState.get<AcpModelInfo[]>(
@@ -60,6 +70,24 @@ export class AcpLanguageModelProvider
         );
         this.models = this.buildModelInfoList(realModels);
         await this.context.globalState.update(this.globalStateKey, realModels);
+        this._onDidChangeLanguageModelChatInformation.fire();
+      }),
+    );
+
+    this._register(
+      sessionManager.onDidUsageUpdate(async ({ modelId, maxInputTokens }) => {
+        this.modelMaxInputTokens.set(modelId, maxInputTokens);
+        const persisted: Record<string, number> = {};
+        this.modelMaxInputTokens.forEach((v, k) => {
+          persisted[k] = v;
+        });
+        await this.context.globalState.update(
+          this.maxTokensStateKey,
+          persisted,
+        );
+        this.models = this.buildModelInfoList(
+          this.models.filter((m) => m.id !== this.seedModelId),
+        );
         this._onDidChangeLanguageModelChatInformation.fire();
       }),
     );
@@ -108,7 +136,9 @@ export class AcpLanguageModelProvider
       name: this.agent.label,
       family: `acp-${this.agentId}`,
       version: "default",
-      maxInputTokens: ACP_DEFAULT_MAX_INPUT_TOKENS,
+      maxInputTokens:
+        this.modelMaxInputTokens.get(this.seedModelId) ??
+        ACP_DEFAULT_MAX_INPUT_TOKENS,
       maxOutputTokens: ACP_DEFAULT_MAX_OUTPUT_TOKENS,
       capabilities: { toolCalling: true },
       isUserSelectable: false,
@@ -126,7 +156,8 @@ export class AcpLanguageModelProvider
       name,
       family: `acp-${this.agentId}`,
       version: modelId,
-      maxInputTokens: ACP_DEFAULT_MAX_INPUT_TOKENS,
+      maxInputTokens:
+        this.modelMaxInputTokens.get(modelId) ?? ACP_DEFAULT_MAX_INPUT_TOKENS,
       maxOutputTokens: ACP_DEFAULT_MAX_OUTPUT_TOKENS,
       capabilities: { toolCalling: true },
       tooltip: description ?? undefined,
