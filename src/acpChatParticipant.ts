@@ -30,6 +30,7 @@ import {
   ResolvableCallback,
   VscodeToolNames,
 } from "./types";
+import { isUsageUpdate } from "./acpDraftTypes";
 
 const LIST_COMMANDS_PROMPT = "/?";
 
@@ -528,6 +529,24 @@ export class AcpChatParticipant extends DisposableBase {
         break;
       }
       case "session_info_update": {
+        break;
+      }
+
+      // draft apis
+      case "usage_update": {
+        if (isUsageUpdate(update)) {
+          response.usage({
+            promptTokens: update.used,
+            completionTokens: 0,
+          });
+          if (this.currentSession) {
+            this.currentSession.contextWindowUsed = update.used;
+            this.sessionManager.reportContextWindowSize(
+              this.currentSession,
+              update.size,
+            );
+          }
+        }
         break;
       }
       default:
