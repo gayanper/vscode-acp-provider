@@ -34,9 +34,45 @@
   "enabledApiProposals": [
     "chatSessionsProvider",
     "chatParticipantPrivate",
-    "chatParticipantAdditions"
+    "chatParticipantAdditions",
+    "chatProvider",
+    "defaultChatParticipant"
   ],
   "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "acp-opencode",
+        "displayName": "OpenCode [ACP]"
+      },
+      {
+        "vendor": "acp-codex",
+        "displayName": "Codex [ACP]"
+      },
+      {
+        "vendor": "acp-cagent",
+        "displayName": "Cagent [ACP]"
+      },
+      {
+        "vendor": "acp-geminicli",
+        "displayName": "Gemini [ACP]"
+      },
+      {
+        "vendor": "acp-claude",
+        "displayName": "Claude Code [ACP]"
+      },
+      {
+        "vendor": "acp-vibe",
+        "displayName": "Mistral Vibe [ACP]"
+      },
+      {
+        "vendor": "acp-copilot",
+        "displayName": "Copilot [ACP]"
+      },
+      {
+        "vendor": "acp-default",
+        "when": "!github.copilot-chat.activated"
+      }
+    ],
     "chatSessions": [
       {
         "name": "opencode",
@@ -291,6 +327,20 @@
       {
         "command": "acp.clearSessions",
         "title": "ACP: Delete all sessions"
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "acp-default",
+        "fullName": "ACP Agent",
+        "name": "acp",
+        "isDefault": true,
+        "modes": [
+          "ask",
+          "edit",
+          "agent"
+        ],
+        "when": "!github.copilot-chat.activated"
       }
     ]
   },

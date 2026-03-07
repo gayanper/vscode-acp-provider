@@ -88,6 +88,10 @@ export interface AcpSessionManager extends vscode.Disposable {
     resource: vscode.Uri;
     modeId: string;
   }>;
+  onDidCurrentModelChange: vscode.Event<{
+    resource: vscode.Uri;
+    modelId: string;
+  }>;
 
   createOrGet(vscodeResource: vscode.Uri): Promise<{
     session: Session;
@@ -171,10 +175,20 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     resource: vscode.Uri;
     modeId: string;
   }> = this._onDidCurrentModeChange.event;
+
+  private readonly _onDidCurrentModelChange: vscode.EventEmitter<{
+    resource: vscode.Uri;
+    modelId: string;
+  }> = new vscode.EventEmitter<{ resource: vscode.Uri; modelId: string }>();
+  onDidCurrentModelChange: vscode.Event<{
+    resource: vscode.Uri;
+    modelId: string;
+  }> = this._onDidCurrentModelChange.event;
   // end event definitions --------------------------------------------------
 
   private diskSessions: Map<string, DiskSession> | null = null;
   private activeSessions: Map<string, Session> = new Map();
+  private lastKnownModelId: string | null = null;
   private availableCommands: Map<string, AvailableCommand[]> = new Map();
   private readonly sessionSubscriptions = new Map<
     string,
@@ -233,7 +247,9 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
             this.handlePreChatSessionUpdate(update),
           ),
           client.onDidOptionsChanged(() => {
-            this.cachedOptions = this.buildOptions(client);
+            const newOptions = this.buildOptions(client);
+            this.detectAndFireModelChange(newOptions);
+            this.cachedOptions = newOptions;
             this._onDidChangeOptions.fire();
           }),
         ]);
@@ -288,7 +304,9 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
             this.handlePreChatSessionUpdate(update),
           ),
           client.onDidOptionsChanged(() => {
-            this.cachedOptions = this.buildOptions(client);
+            const newOptions = this.buildOptions(client);
+            this.detectAndFireModelChange(newOptions);
+            this.cachedOptions = newOptions;
             this._onDidChangeOptions.fire();
           }),
         ]);
@@ -409,6 +427,19 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     return this.availableCommands.get(sessionId) ?? [];
   }
 
+  private detectAndFireModelChange(newOptions: Options): void {
+    const newModelId = newOptions.models?.currentModelId ?? null;
+    if (newModelId !== null && newModelId !== this.lastKnownModelId) {
+      this.lastKnownModelId = newModelId;
+      for (const session of this.activeSessions.values()) {
+        this._onDidCurrentModelChange.fire({
+          resource: session.vscodeResource,
+          modelId: newModelId,
+        });
+      }
+    }
+  }
+
   // this handler must handle none-chat session messages
   private handlePreChatSessionUpdate(notification: SessionNotification): void {
     const update = notification.update;
@@ -492,5 +523,6 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     this._onDidChangeSession.dispose();
     this._onDidChangeOptions.dispose();
     this._onDidCurrentModeChange.dispose();
+    this._onDidCurrentModelChange.dispose();
   }
 }

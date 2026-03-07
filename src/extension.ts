@@ -1,5 +1,6 @@
 /// <reference path="../vscode.proposed.chatParticipantPrivate.d.ts" />
 /// <reference path="../vscode.proposed.chatSessionsProvider.d.ts" />
+/// <reference path="../vscode.proposed.chatProvider.d.ts" />
 // SPDX-License-Identifier: Apache-2.0
 import * as vscode from "vscode";
 import { AcpChatParticipant } from "./acpChatParticipant";
@@ -21,6 +22,13 @@ import { createTestAcpClientWithScenarios } from "./testScenarios";
 import { AcpClient } from "./acpClient";
 import { registerCommands } from "./commands";
 import { registerDiffContentProvider } from "./diffContentProvider";
+import { AcpLanguageModelProvider } from "./acpLanguageModelProvider";
+import {
+  DefaultLanguageModelProvider,
+  DEFAULT_MODEL_PROVIDER_ID,
+  isCopilotAvailable,
+  DefaultParticipant,
+} from "./chatDefaults";
 
 export async function activate(context: vscode.ExtensionContext) {
   const outputChannel = vscode.window.createOutputChannel("ACP Client", {
@@ -56,6 +64,20 @@ export async function activate(context: vscode.ExtensionContext) {
       );
     }),
   );
+  // register a default model provider when ai features are disabled
+  if (!isCopilotAvailable()) {
+    const defaultLmProvider = new DefaultLanguageModelProvider();
+    context.subscriptions.push(defaultLmProvider);
+    context.subscriptions.push(
+      vscode.lm.registerLanguageModelChatProvider(
+        DEFAULT_MODEL_PROVIDER_ID,
+        defaultLmProvider,
+      ),
+    );
+    context.subscriptions.push(
+      vscode.chat.createChatParticipant("acp-default", DefaultParticipant),
+    );
+  }
 
   registerCommands(context, { sessionDb }, outputChannel);
 }
@@ -103,6 +125,19 @@ function registerAgents(params: {
       sessionSyncer,
     );
     context.subscriptions.push(sessionManager);
+
+    const lmProvider = new AcpLanguageModelProvider(
+      agent,
+      sessionManager,
+      context,
+    );
+    context.subscriptions.push(lmProvider);
+    context.subscriptions.push(
+      vscode.lm.registerLanguageModelChatProvider(
+        `acp-${agent.id}`,
+        lmProvider,
+      ),
+    );
 
     const participant = new AcpChatParticipant(
       permisionPromptsManager,
