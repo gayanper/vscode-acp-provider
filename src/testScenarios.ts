@@ -118,6 +118,7 @@ export function createTestAcpClientWithScenarios(
   addToolCallPatchFile(config);
   addModeSwitchingScenario(config);
   addExitPlanModePermissionScenario(config);
+  addUsageUpdateScenario(config);
 
   // create a new prompt which lists these scenarios when typed "list"
   config.promptPrograms?.push({
@@ -1024,6 +1025,40 @@ function addExitPlanModePermissionScenario(config: PreprogrammedConfig) {
             content: {
               type: "text",
               text: "Staying in plan mode.",
+            },
+          },
+        },
+      ],
+    },
+  });
+}
+
+function addUsageUpdateScenario(config: PreprogrammedConfig) {
+  config.promptPrograms?.push({
+    promptText: "show usage",
+    notifications: {
+      prompt: [
+        {
+          sessionId: "test-session-id",
+          update: {
+            // Cast required: "usage_update" is a draft ACP type not yet in the SDK.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            sessionUpdate: "usage_update" as any,
+            used: 53000,
+            size: 200000,
+            cost: {
+              amount: 0.045,
+              currency: "USD",
+            },
+          },
+        },
+        {
+          sessionId: "test-session-id",
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: {
+              type: "text",
+              text: "Context window status sent. You are using 53,000 of 200,000 tokens (26.5%).",
             },
           },
         },

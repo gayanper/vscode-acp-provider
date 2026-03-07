@@ -25,6 +25,11 @@ export class Session {
     permissionContext?: vscode.Disposable;
   };
 
+  /** Latest context window usage reported via `usage_update` notifications. */
+  contextWindowUsed?: number;
+  /** Context window capacity reported via `usage_update` notifications. */
+  contextWindowSize?: number;
+
   constructor(
     readonly agent: AgentRegistryEntry,
     readonly vscodeResource: vscode.Uri,
