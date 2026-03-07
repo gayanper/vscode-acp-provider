@@ -35,6 +35,15 @@ export class AcpChatSessionContentProvider
         });
       }),
     );
+
+    this._register(
+      sessionManager.onDidCurrentModelChange(({ resource, modelId }) => {
+        this._onDidChangeChatSessionOptions.fire({
+          resource,
+          updates: [{ optionId: VscodeSessionOptions.Model, value: modelId }],
+        });
+      }),
+    );
   }
 
   // start event definitions --------------------------------------------------
