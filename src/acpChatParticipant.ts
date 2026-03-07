@@ -541,7 +541,10 @@ export class AcpChatParticipant extends DisposableBase {
           });
           if (this.currentSession) {
             this.currentSession.contextWindowUsed = update.used;
-            this.currentSession.contextWindowSize = update.size;
+            this.sessionManager.reportContextWindowSize(
+              this.currentSession,
+              update.size,
+            );
           }
         }
         break;

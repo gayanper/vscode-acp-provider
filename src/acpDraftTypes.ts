@@ -9,7 +9,7 @@
  * Represents the context-window + cumulative-cost payload delivered via
  * `session/update` with `sessionUpdate: "usage_update"` (ACP RFD draft).
  * The SDK does not yet include this type, so we define it locally.
- * 
+ *
  * https://agentclientprotocol.com/rfds/session-usage
  */
 export interface UsageUpdateNotification {
@@ -25,8 +25,8 @@ export interface UsageUpdateNotification {
   };
 }
 
-export function isUsageUpdate(
-  update: { sessionUpdate: string },
-): update is UsageUpdateNotification {
+export function isUsageUpdate(update: {
+  sessionUpdate: string;
+}): update is UsageUpdateNotification {
   return update.sessionUpdate === "usage_update";
 }

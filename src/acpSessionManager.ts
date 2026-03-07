@@ -97,6 +97,7 @@ export interface AcpSessionManager extends vscode.Disposable {
     resource: vscode.Uri;
     modelId: string;
   }>;
+  onDidUsageUpdate: vscode.Event<{ modelId: string; maxInputTokens: number }>;
 
   createOrGet(vscodeResource: vscode.Uri): Promise<{
     session: Session;
@@ -113,6 +114,7 @@ export interface AcpSessionManager extends vscode.Disposable {
   getAvailableCommands(sessionId: string): AvailableCommand[];
   closeSession(vscodeResource: vscode.Uri): void;
   createSessionUri(session: Session): vscode.Uri;
+  reportContextWindowSize(session: Session, size: number): void;
 }
 
 export function createAcpSessionManager(
@@ -189,6 +191,13 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     resource: vscode.Uri;
     modelId: string;
   }> = this._onDidCurrentModelChange.event;
+
+  private readonly _onDidUsageUpdate = new vscode.EventEmitter<{
+    modelId: string;
+    maxInputTokens: number;
+  }>();
+  onDidUsageUpdate: vscode.Event<{ modelId: string; maxInputTokens: number }> =
+    this._onDidUsageUpdate.event;
   // end event definitions --------------------------------------------------
 
   private diskSessions: Map<string, DiskSession> | null = null;
@@ -430,6 +439,14 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
 
   getAvailableCommands(sessionId: string): AvailableCommand[] {
     return this.availableCommands.get(sessionId) ?? [];
+  }
+
+  reportContextWindowSize(session: Session, size: number): void {
+    session.contextWindowSize = size;
+    this._onDidUsageUpdate.fire({
+      modelId: session.defaultChatOptions.modelId,
+      maxInputTokens: size,
+    });
   }
 
   private detectAndFireModelChange(newOptions: Options): void {
