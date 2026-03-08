@@ -540,11 +540,10 @@ export class AcpChatParticipant extends DisposableBase {
             completionTokens: 0,
           });
           if (this.currentSession) {
-            this.currentSession.contextWindowUsed = update.used;
-            this.sessionManager.reportContextWindowSize(
-              this.currentSession,
-              update.size,
-            );
+            this.sessionManager.reportContextWindowSize(this.currentSession, {
+              size: update.size,
+              used: update.used,
+            });
           }
         }
         break;
