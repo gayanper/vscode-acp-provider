@@ -114,7 +114,10 @@ export interface AcpSessionManager extends vscode.Disposable {
   getAvailableCommands(sessionId: string): AvailableCommand[];
   closeSession(vscodeResource: vscode.Uri): void;
   createSessionUri(session: Session): vscode.Uri;
-  reportContextWindowSize(session: Session, size: number): void;
+  reportContextWindowSize(
+    session: Session,
+    args: { size: number; used: number },
+  ): void;
 }
 
 export function createAcpSessionManager(
@@ -441,11 +444,15 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     return this.availableCommands.get(sessionId) ?? [];
   }
 
-  reportContextWindowSize(session: Session, size: number): void {
-    session.contextWindowSize = size;
+  reportContextWindowSize(
+    session: Session,
+    args: { size: number; used: number },
+  ): void {
+    session.contextWindowSize = args.size;
+    session.contextWindowUsed = args.used;
     this._onDidUsageUpdate.fire({
       modelId: session.defaultChatOptions.modelId,
-      maxInputTokens: size,
+      maxInputTokens: args.size,
     });
   }
 

@@ -126,7 +126,18 @@ export class AcpLanguageModelProvider
   private buildModelInfoList(realModels: AcpModelInfo[]): AcpModelInfo[] {
     const seed = this.buildSeedModel();
     // Deduplicate: don't include a real model entry if its id matches the seed
-    const filtered = realModels.filter((m) => m.id !== this.seedModelId);
+    const filtered = realModels
+      .filter((m) => m.id !== this.seedModelId)
+      .map((m) => {
+        const maxTokens =
+          this.modelMaxInputTokens.get(m.id) ||
+          ACP_DEFAULT_MAX_INPUT_TOKENS + ACP_DEFAULT_MAX_OUTPUT_TOKENS;
+        return {
+          ...m,
+          maxInputTokens: Math.ceil(maxTokens / 2),
+          maxOutputTokens: Math.ceil(maxTokens / 2),
+        };
+      });
     return [seed, ...filtered];
   }
 
