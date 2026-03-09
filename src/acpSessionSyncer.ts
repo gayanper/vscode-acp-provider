@@ -2,10 +2,9 @@
 import * as vscode from "vscode";
 import { AcpClient } from "./acpClient";
 import { DiskSession, SessionDb } from "./acpSessionDb";
-import { AgentType } from "./types";
 
 export interface AcpSessionSyncer extends vscode.Disposable {
-  sync(agentType: AgentType, client: AcpClient): Promise<void>;
+  sync(agentType: string, client: AcpClient): Promise<void>;
 }
 
 export function createAcpSessionSyncer(
@@ -16,14 +15,14 @@ export function createAcpSessionSyncer(
 }
 
 class AcpSessionSyncerImpl implements AcpSessionSyncer {
-  private readonly syncedAgents = new Set<AgentType>();
+  private readonly syncedAgents = new Set<string>();
 
   constructor(
     private readonly sessionDb: SessionDb,
     private readonly logger: vscode.LogOutputChannel,
   ) {}
 
-  async sync(agentType: AgentType, client: AcpClient): Promise<void> {
+  async sync(agentType: string, client: AcpClient): Promise<void> {
     const caps = client.getCapabilities();
 
     if (!caps.loadSession) {

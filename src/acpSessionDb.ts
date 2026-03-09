@@ -3,7 +3,6 @@ import fs from "fs";
 import { DatabaseSync } from "node:sqlite";
 import path from "path";
 import * as vscode from "vscode";
-import { AgentType } from "./types";
 
 export type DiskSession = {
   sessionId: string;
@@ -14,11 +13,11 @@ export type DiskSession = {
 
 export interface SessionDb extends vscode.Disposable {
   onDataChanged: vscode.Event<void>;
-  listSessions(agent: AgentType, cwd: string): Promise<DiskSession[]>;
-  upsertSession(agent: AgentType, info: DiskSession): Promise<void>;
-  deleteSession(agent: AgentType, sessionId: string): Promise<void>;
+  listSessions(agent: string, cwd: string): Promise<DiskSession[]>;
+  upsertSession(agent: string, info: DiskSession): Promise<void>;
+  deleteSession(agent: string, sessionId: string): Promise<void>;
   deleteAllSessions(cwd: string): Promise<void>;
-  hasSession(agent: AgentType, sessionId: string): Promise<boolean>;
+  hasSession(agent: string, sessionId: string): Promise<boolean>;
 }
 
 function getAcpDbFile(context: vscode.ExtensionContext): string {
@@ -69,7 +68,7 @@ class SqlLiteSessionDb implements SessionDb {
     this.db.exec(SCHEMA);
   }
 
-  async listSessions(agent: AgentType, cwd: string): Promise<DiskSession[]> {
+  async listSessions(agent: string, cwd: string): Promise<DiskSession[]> {
     const rows = this.db!.prepare(
       "SELECT session_id AS sessionId, cwd, title, updated_at AS updatedAt FROM sessions WHERE agent_type=? AND cwd=? ORDER BY updated_at DESC",
     ).all(agent, cwd);
@@ -81,7 +80,7 @@ class SqlLiteSessionDb implements SessionDb {
     }));
   }
 
-  async upsertSession(agent: AgentType, info: DiskSession): Promise<void> {
+  async upsertSession(agent: string, info: DiskSession): Promise<void> {
     const existing = this.db!.prepare(
       "SELECT COUNT(*) AS count FROM sessions WHERE agent_type=? AND session_id=?",
     ).get(agent, info.sessionId) as { count: number };
@@ -93,10 +92,7 @@ class SqlLiteSessionDb implements SessionDb {
     }
   }
 
-  private async insertSession(
-    agent: AgentType,
-    info: DiskSession,
-  ): Promise<void> {
+  private async insertSession(agent: string, info: DiskSession): Promise<void> {
     const resp = this.db!.prepare(
       "INSERT OR IGNORE INTO sessions (agent_type, session_id, cwd, title, updated_at) VALUES (?, ?, ?, ?, ?)",
     ).run(agent, info.sessionId, info.cwd, info.title, info.updatedAt);
@@ -105,10 +101,7 @@ class SqlLiteSessionDb implements SessionDb {
     }
   }
 
-  private async updateSession(
-    agent: AgentType,
-    info: DiskSession,
-  ): Promise<void> {
+  private async updateSession(agent: string, info: DiskSession): Promise<void> {
     const resp = this.db!.prepare(
       "UPDATE sessions SET cwd=?, title=?, updated_at=? WHERE agent_type=? AND session_id=?",
     ).run(info.cwd, info.title, info.updatedAt, agent, info.sessionId);
@@ -117,7 +110,7 @@ class SqlLiteSessionDb implements SessionDb {
     }
   }
 
-  async deleteSession(agent: AgentType, sessionId: string): Promise<void> {
+  async deleteSession(agent: string, sessionId: string): Promise<void> {
     const resp = this.db!.prepare(
       "DELETE FROM sessions WHERE agent_type=? AND session_id=?",
     ).run(agent, sessionId);
@@ -133,7 +126,7 @@ class SqlLiteSessionDb implements SessionDb {
     }
   }
 
-  async hasSession(agent: AgentType, sessionId: string): Promise<boolean> {
+  async hasSession(agent: string, sessionId: string): Promise<boolean> {
     const row = this.db!.prepare(
       "SELECT COUNT(*) AS count FROM sessions WHERE agent_type=? AND session_id=?",
     ).get(agent, sessionId) as { count: number };
