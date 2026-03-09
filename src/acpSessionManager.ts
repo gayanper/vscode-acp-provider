@@ -352,7 +352,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
         );
         this.activeSessions.set(decodedResource.sessionId, session);
 
-        const turnBuilder = new TurnBuilder(this.agent.id);
+        const turnBuilder = new TurnBuilder(this.agent.id, this.logger);
         response.notifications.forEach((notification) =>
           turnBuilder.processNotification(notification),
         );

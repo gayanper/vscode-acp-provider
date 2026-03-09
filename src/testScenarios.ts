@@ -598,6 +598,50 @@ function addResumeSessionScenario(config: PreprogrammedConfig) {
         sessionUpdate: "user_message_chunk",
         content: {
           type: "text",
+          text: [
+            "<command-message>./name</command-message>",
+            "<command-name>name</command-name>",
+            "<command-args>argument as text</command-args>",
+          ].join("\n"),
+        },
+      },
+    },
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: {
+          type: "text",
+          text: "Command parsed from resumed session context.",
+        },
+      },
+    },
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: {
+          type: "text",
+          text: "continue release planning with no extra formatting",
+        },
+      },
+    },
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: {
+          type: "text",
+          text: "Continuing from a plain resumed user message.",
+        },
+      },
+    },
+    {
+      sessionId: "test-session-id",
+      update: {
+        sessionUpdate: "user_message_chunk",
+        content: {
+          type: "text",
           text: "User: update release plan",
         },
       },
