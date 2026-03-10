@@ -527,13 +527,14 @@ export class AcpChatParticipant extends DisposableBase {
       // draft apis
       case "usage_update": {
         if (isUsageUpdate(update)) {
-          response.usage({
-            promptTokens: update.used,
-            completionTokens: 0,
-          });
+          const usage = update.used - (session.contextWindowUsed || 0);
           this.sessionManager.reportContextWindowSize(session, {
             size: update.size,
             used: update.used,
+          });
+          response.usage({
+            promptTokens: usage,
+            completionTokens: 0,
           });
         }
         break;

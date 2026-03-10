@@ -2,15 +2,15 @@
 
 /// <reference path="../vscode.proposed.chatProvider.d.ts" />
 import * as vscode from "vscode";
-import { AgentRegistryEntry } from "./agentRegistry";
 import { AcpSessionManager } from "./acpSessionManager";
+import { AgentRegistryEntry } from "./agentRegistry";
 import { DisposableBase } from "./disposables";
 
 const SEED_MODEL_ID_SUFFIX = "-default";
 const GLOBAL_STATE_KEY_PREFIX = "acp.models.";
 const GLOBAL_STATE_MAX_TOKENS_KEY_PREFIX = "acp.modelMaxTokens.";
-const ACP_DEFAULT_MAX_INPUT_TOKENS = 60_000;
-const ACP_DEFAULT_MAX_OUTPUT_TOKENS = 8_000;
+const ACP_DEFAULT_MAX_INPUT_TOKENS = 59_000;
+const ACP_DEFAULT_MAX_OUTPUT_TOKENS = 1;
 
 type AcpModelInfo = vscode.LanguageModelChatInformation & {
   readonly isUserSelectable?: boolean;
@@ -75,8 +75,8 @@ export class AcpLanguageModelProvider
     );
 
     this._register(
-      sessionManager.onDidUsageUpdate(async ({ modelId, maxInputTokens }) => {
-        this.modelMaxInputTokens.set(modelId, maxInputTokens);
+      sessionManager.onDidUsageUpdate(async ({ modelId, maxWindowSize }) => {
+        this.modelMaxInputTokens.set(modelId, maxWindowSize);
         const persisted: Record<string, number> = {};
         this.modelMaxInputTokens.forEach((v, k) => {
           persisted[k] = v;
@@ -130,12 +130,11 @@ export class AcpLanguageModelProvider
       .filter((m) => m.id !== this.seedModelId)
       .map((m) => {
         const maxTokens =
-          this.modelMaxInputTokens.get(m.id) ||
-          ACP_DEFAULT_MAX_INPUT_TOKENS + ACP_DEFAULT_MAX_OUTPUT_TOKENS;
+          this.modelMaxInputTokens.get(m.id) || ACP_DEFAULT_MAX_INPUT_TOKENS;
         return {
           ...m,
-          maxInputTokens: Math.ceil(maxTokens / 2),
-          maxOutputTokens: Math.ceil(maxTokens / 2),
+          maxInputTokens: maxTokens - ACP_DEFAULT_MAX_OUTPUT_TOKENS,
+          maxOutputTokens: ACP_DEFAULT_MAX_OUTPUT_TOKENS,
         };
       });
     return [seed, ...filtered];
@@ -148,8 +147,7 @@ export class AcpLanguageModelProvider
       family: `acp-${this.agentId}`,
       version: "default",
       maxInputTokens:
-        this.modelMaxInputTokens.get(this.seedModelId) ??
-        ACP_DEFAULT_MAX_INPUT_TOKENS,
+        ACP_DEFAULT_MAX_INPUT_TOKENS - ACP_DEFAULT_MAX_OUTPUT_TOKENS,
       maxOutputTokens: ACP_DEFAULT_MAX_OUTPUT_TOKENS,
       capabilities: { toolCalling: true },
       isUserSelectable: false,
@@ -168,7 +166,8 @@ export class AcpLanguageModelProvider
       family: `acp-${this.agentId}`,
       version: modelId,
       maxInputTokens:
-        this.modelMaxInputTokens.get(modelId) ?? ACP_DEFAULT_MAX_INPUT_TOKENS,
+        (this.modelMaxInputTokens.get(modelId) ??
+          ACP_DEFAULT_MAX_INPUT_TOKENS) - ACP_DEFAULT_MAX_OUTPUT_TOKENS,
       maxOutputTokens: ACP_DEFAULT_MAX_OUTPUT_TOKENS,
       capabilities: { toolCalling: true },
       tooltip: description ?? undefined,
