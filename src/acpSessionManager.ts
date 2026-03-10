@@ -97,7 +97,7 @@ export interface AcpSessionManager extends vscode.Disposable {
     resource: vscode.Uri;
     modelId: string;
   }>;
-  onDidUsageUpdate: vscode.Event<{ modelId: string; maxInputTokens: number }>;
+  onDidUsageUpdate: vscode.Event<{ modelId: string; maxWindowSize: number }>;
 
   createOrGet(vscodeResource: vscode.Uri): Promise<{
     session: Session;
@@ -197,9 +197,9 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
 
   private readonly _onDidUsageUpdate = new vscode.EventEmitter<{
     modelId: string;
-    maxInputTokens: number;
+    maxWindowSize: number;
   }>();
-  onDidUsageUpdate: vscode.Event<{ modelId: string; maxInputTokens: number }> =
+  onDidUsageUpdate: vscode.Event<{ modelId: string; maxWindowSize: number }> =
     this._onDidUsageUpdate.event;
   // end event definitions --------------------------------------------------
 
@@ -452,7 +452,7 @@ class SessionManager extends DisposableBase implements AcpSessionManager {
     session.contextWindowUsed = args.used;
     this._onDidUsageUpdate.fire({
       modelId: session.defaultChatOptions.modelId,
-      maxInputTokens: args.size,
+      maxWindowSize: args.size,
     });
   }
 
