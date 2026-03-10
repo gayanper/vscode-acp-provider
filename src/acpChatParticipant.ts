@@ -74,7 +74,6 @@ export class AcpChatParticipant extends DisposableBase {
     }
   >();
   private readonly questionToolCalls = new Set<string>();
-  private currentSession: Session | null = null;
   private currentToolInvocationToken:
     | vscode.ChatParticipantToolToken
     | undefined;
@@ -118,14 +117,12 @@ export class AcpChatParticipant extends DisposableBase {
     }
     session.markAsInProgress();
     this.cancelPendingRequest(session);
-    this.currentSession = session;
     this.currentToolInvocationToken = request.toolInvocationToken;
 
     if (request.prompt.trim() === LIST_COMMANDS_PROMPT) {
       this.renderAvailableCommands(session, response);
       session.markAsCompleted();
       this.sessionManager.syncSessionState(sessionResource, session);
-      this.currentSession = null;
       this.currentToolInvocationToken = undefined;
       return;
     }
@@ -144,7 +141,7 @@ export class AcpChatParticipant extends DisposableBase {
         if (token.isCancellationRequested) {
           return;
         }
-        await this.renderSessionUpdate(notification, response);
+        await this.renderSessionUpdate(notification, response, session);
       },
     );
 
@@ -209,7 +206,6 @@ export class AcpChatParticipant extends DisposableBase {
     } finally {
       session.pendingRequest?.permissionContext?.dispose();
       session.pendingRequest = undefined;
-      this.currentSession = null;
       this.currentToolInvocationToken = undefined;
       cancellationRegistration.dispose();
       subscription.dispose();
@@ -353,6 +349,7 @@ export class AcpChatParticipant extends DisposableBase {
   private async renderSessionUpdate(
     notification: SessionNotification,
     response: vscode.ChatResponseStream,
+    session: Session,
   ): Promise<void> {
     this.tracer.trace(notification);
     const update = notification.update;
@@ -429,33 +426,28 @@ export class AcpChatParticipant extends DisposableBase {
               try {
                 // Capture session before any await — this.currentSession is a shared
                 // mutable field that could be overwritten if a concurrent request starts.
-                const activeSession = this.currentSession;
-                activeSession?.markAsNeedsInput();
-                if (activeSession) {
-                  await this.sessionManager.syncSessionState(
-                    activeSession.vscodeResource,
-                    activeSession,
-                  );
-                }
+                session.markAsNeedsInput();
+                await this.sessionManager.syncSessionState(
+                  session.vscodeResource,
+                  session,
+                );
                 const answers = await response.questionCarousel(
                   questions,
                   false,
                 );
 
                 // Send answers back to the agent
-                if (activeSession?.acpSessionId && answers) {
-                  await activeSession.client.sendQuestionAnswers(
-                    activeSession.acpSessionId,
+                if (session.acpSessionId && answers) {
+                  await session.client.sendQuestionAnswers(
+                    session.acpSessionId,
                     update.toolCallId,
                     answers,
                   );
-                  activeSession.markAsInProgress();
-                  if (activeSession) {
-                    await this.sessionManager.syncSessionState(
-                      activeSession.vscodeResource,
-                      activeSession,
-                    );
-                  }
+                  session.markAsInProgress();
+                  await this.sessionManager.syncSessionState(
+                    session.vscodeResource,
+                    session,
+                  );
                 }
               } catch (error) {
                 this.logger.error(
@@ -539,12 +531,10 @@ export class AcpChatParticipant extends DisposableBase {
             promptTokens: update.used,
             completionTokens: 0,
           });
-          if (this.currentSession) {
-            this.sessionManager.reportContextWindowSize(this.currentSession, {
-              size: update.size,
-              used: update.used,
-            });
-          }
+          this.sessionManager.reportContextWindowSize(session, {
+            size: update.size,
+            used: update.used,
+          });
         }
         break;
       }
