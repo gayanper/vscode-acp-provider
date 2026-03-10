@@ -8,8 +8,8 @@ import {
 import * as vscode from "vscode";
 import {
   buildDiffStats,
-  buildQuestionCarouselPart,
   buildMcpToolInvocationData,
+  buildQuestionCarouselPart,
   buildTerminalToolInvocationData,
   getSubAgentInvocationId,
   getToolInfo,
@@ -18,7 +18,10 @@ import {
 } from "./chatRenderingUtils";
 import { createDiffUri, setDiffContent } from "./diffContentProvider";
 import { currentWorkspaceRoot } from "./types";
-
+type ParsedUserMessage = {
+  userMessages: string;
+  references: vscode.ChatPromptReference[];
+};
 /**
  * Builds VS Code chat turns from ACP session notification events.
  */
@@ -29,7 +32,6 @@ export class TurnBuilder {
   private currentAgentMetadata: Record<string, unknown> = {};
   private agentMessageChunks: string[] = [];
   private turns: Array<vscode.ChatRequestTurn2 | vscode.ChatResponseTurn2> = [];
-  private readonly participantId: string;
   private readonly toolCallParts = new Map<
     string,
     {
@@ -39,9 +41,10 @@ export class TurnBuilder {
   >();
   private readonly questionToolCalls = new Set<string>();
 
-  constructor(participantId: string) {
-    this.participantId = participantId;
-  }
+  constructor(
+    private readonly participantId: string,
+    private readonly logger: vscode.LogOutputChannel,
+  ) {}
 
   processNotification(notification: SessionNotification): void {
     const update = notification.update;
@@ -126,21 +129,12 @@ export class TurnBuilder {
     if (!text) {
       return;
     }
-    if (text.startsWith("User:")) {
-      this.currentUserMessage = text.replace(/^User:\s*/, "").trim();
-    } else if (text.startsWith("Reference ")) {
-      const match = text.match(/Reference\s\((.*)\):\s(.*)/);
-      if (match) {
-        const fileUri = resolveUri(match[1], currentWorkspaceRoot());
-        const fileRelative = match[2];
-        if (fileUri) {
-          this.currentUserReferences.push({
-            id: fileRelative,
-            name: fileRelative,
-            value: fileUri,
-          });
-        }
-      }
+    const parsed = this.parseUserChunk(text);
+    if (parsed.userMessages) {
+      this.currentUserMessage += parsed.userMessages;
+    }
+    if (parsed.references.length) {
+      this.currentUserReferences.push(...parsed.references);
     }
   }
 
@@ -363,18 +357,152 @@ export class TurnBuilder {
     return undefined;
   }
 
-  private getFullTextRange(text: string): vscode.Range {
-    if (!text) {
-      return new vscode.Range(
-        new vscode.Position(0, 0),
-        new vscode.Position(0, 0),
-      );
+  private parseUserChunk(raw: string): ParsedUserMessage {
+    const colonOutput = this.parseColonSeparatedUserChunk(raw);
+    if (colonOutput.userMessages || colonOutput.references.length) {
+      this.logger.debug("User message chunk parsed using Colon format");
+      return colonOutput;
     }
-    const lines = text.split("\n");
-    const lastLine = lines[lines.length - 1] ?? "";
-    return new vscode.Range(
-      new vscode.Position(0, 0),
-      new vscode.Position(lines.length - 1, lastLine.length),
+
+    const xmlOutput = this.parseXmlLineUserChunk(raw);
+    if (xmlOutput.userMessages || xmlOutput.references.length) {
+      this.logger.debug("User message chunk parsed using XML format");
+      return xmlOutput;
+    }
+
+    this.logger.debug(
+      "User message chunk could not be parsed, returning raw value",
     );
+    return {
+      userMessages: raw,
+      references: [],
+    };
+  }
+
+  private parseXmlLineUserChunk(raw: string): ParsedUserMessage {
+    const workspaceRoot = currentWorkspaceRoot();
+    const references: vscode.ChatPromptReference[] = [];
+
+    let userMessages = raw;
+
+    const extractTagValue = (tagName: string): string | undefined => {
+      const match = raw.match(
+        new RegExp(`<${tagName}>([\\s\\S]*?)<\\/${tagName}>`, "i"),
+      );
+      return match?.[1]?.trim();
+    };
+
+    const commandMessage = extractTagValue("command-message");
+    const commandName = extractTagValue("command-name");
+    const commandArgs = extractTagValue("command-args");
+
+    const normalizeCommandName = (value: string): string =>
+      value.replace(/^(?:\.\/|\/)+/, "").trim();
+
+    let slashCommand = "";
+    if (commandMessage) {
+      const normalized = commandMessage.trim();
+      if (normalized.startsWith("./")) {
+        slashCommand = `/${normalizeCommandName(normalized)}`;
+      } else if (normalized.startsWith("/")) {
+        slashCommand = `/${normalizeCommandName(normalized)}`;
+      } else {
+        slashCommand = `/${normalizeCommandName(normalized)}`;
+      }
+    } else if (commandName) {
+      slashCommand = `/${normalizeCommandName(commandName)}`;
+    }
+
+    if (slashCommand && commandArgs) {
+      slashCommand = `${slashCommand} ${commandArgs}`;
+    } else if (!slashCommand && commandArgs) {
+      slashCommand = ` ${commandArgs}`;
+    }
+
+    userMessages = userMessages
+      .replace(/<command-message>[\s\S]*?<\/command-message>/gi, "")
+      .replace(/<command-name>[\s\S]*?<\/command-name>/gi, "")
+      .replace(/<command-args>[\s\S]*?<\/command-args>/gi, "");
+
+    const contextTagPattern = /<context\s+ref="([^"]+)"[\s\S]*?<\/context>/g;
+    userMessages = userMessages.replace(contextTagPattern, (_match, ref) => {
+      const uri = resolveUri(ref, workspaceRoot);
+      if (uri) {
+        const name = vscode.workspace.asRelativePath(uri, false);
+        references.push({
+          id: name,
+          name,
+          value: uri,
+        });
+      }
+      return "";
+    });
+
+    const markdownRefPattern = /\[@([^\]]+)\]\(([^)]+)\)/g;
+    userMessages = userMessages.replace(
+      markdownRefPattern,
+      (_match, name, ref) => {
+        const uri = resolveUri(ref, workspaceRoot);
+        if (uri) {
+          references.push({
+            id: name,
+            name,
+            value: uri,
+          });
+        }
+        return "";
+      },
+    );
+
+    const cleanedMessage = userMessages.trim();
+
+    return {
+      userMessages: slashCommand
+        ? cleanedMessage
+          ? `${slashCommand}\n${cleanedMessage}`
+          : slashCommand
+        : cleanedMessage,
+      references,
+    };
+  }
+
+  private parseColonSeparatedUserChunk(raw: string): ParsedUserMessage {
+    const REF = "Reference ";
+
+    if (raw.startsWith("User:")) {
+      const refStart = Math.max(raw.indexOf(REF), 0);
+      return {
+        userMessages: raw
+          .substring(0, refStart > 0 ? refStart : raw.length)
+          .replace(/^User:\s*/, "")
+          .trim(),
+        references: [],
+      };
+    }
+
+    if (raw.startsWith(REF)) {
+      const match = raw.match(/Reference\s\((.*)\):\s(.*)/);
+      if (match) {
+        const fileUri = resolveUri(match[1], currentWorkspaceRoot());
+        const fileRelative = match[2];
+        if (fileUri) {
+          return {
+            userMessages: "",
+            references: [
+              {
+                id: fileRelative,
+                name: fileRelative,
+                value: fileUri,
+              },
+            ],
+          };
+        }
+      }
+    }
+
+    return {
+      userMessages: "",
+      references: [],
+    };
   }
 }

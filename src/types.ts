@@ -2,13 +2,6 @@
 import { RequestError } from "@agentclientprotocol/sdk";
 import * as vscode from "vscode";
 
-export enum AgentType {
-  OpenCode = "opencode",
-  Codex = "codex",
-  Cagent = "cagent",
-  GeminiCLI = "geminicli",
-}
-
 export interface AcpStdioMcpServerConfiguration {
   readonly type: "stdio";
   readonly name: string;
